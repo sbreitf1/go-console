@@ -3,10 +3,17 @@
 package console
 
 import (
+	"os"
+
 	"golang.org/x/sys/unix"
 )
 
+const ioctlReadTermios = unix.TCGETS
+const ioctlWriteTermios = unix.TCSETS
+
 func withoutEcho(f func() error) error {
+	fd := int(os.Stdin.Fd())
+
 	termios, err := unix.IoctlGetTermios(fd, ioctlReadTermios)
 	if err != nil {
 		return err
