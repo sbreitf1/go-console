@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/eiannone/keyboard"
 )
 
 //TODO class CLI for command line interpreting, history and auto-complete
@@ -110,4 +112,19 @@ func ReadPassword() (string, error) {
 	// print suppressed line-feed
 	fmt.Println()
 	return pw, nil
+}
+
+// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
+func ReadKey() (Key, rune, error) {
+	if err := keyboard.Open(); err != nil {
+		return 0, 0, err
+	}
+	defer keyboard.Close()
+
+	char, key, err := keyboard.GetKey()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return Key(key), char, nil
 }
