@@ -121,11 +121,17 @@ func ReadPassword() (string, error) {
 
 // ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
 func ReadKey() (Key, rune, error) {
-	if err := keyboard.Open(); err != nil {
-		return 0, 0, err
-	}
-	defer keyboard.Close()
+	var key Key
+	var r rune
+	var err error
+	withReadKeyContext(func() error {
+		key, r, err = readKey()
+		return nil
+	})
+	return key, r, err
+}
 
+func readKey() (Key, rune, error) {
 	char, key, err := keyboard.GetKey()
 	if err != nil {
 		return 0, 0, err
@@ -140,7 +146,16 @@ func ReadKey() (Key, rune, error) {
 	return Key(key), char, nil
 }
 
-type CommandHistoryEntry func(index int) (command []string, found bool)
+func withReadKeyContext(f func() error) error {
+	if err := keyboard.Open(); err != nil {
+		return err
+	}
+	defer keyboard.Close()
+
+	return f()
+}
+
+type CommandHistoryEntry func(index int) []string
 type CompletionCandidatesForEntry func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
 
 type CompletionCandidate struct {
@@ -149,28 +164,31 @@ type CompletionCandidate struct {
 }
 
 func ReadCommand(getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
-	newLinePrompt := "> "
-
 	var sb strings.Builder
 
-	for {
-		line, err := readCommandLine(sb.String(), getHistoryEntry, getCompletionCandidates)
-		if err != nil {
-			return nil, err
+	if err := withReadKeyContext(func() error {
+		for {
+			line, err := readCommandLine(sb.String(), getHistoryEntry, getCompletionCandidates)
+			if err != nil {
+				return err
+			}
+
+			sb.WriteString(line)
+
+			if _, isComplete := ParseCommand(sb.String()); isComplete {
+				return nil
+			}
+
+			// line break is part of command -> append to command because it has been omitted by the line reader
+			sb.WriteRune('\n')
+			Print("> ")
 		}
-
-		sb.WriteString(line)
-
-		cmd, isComplete := ParseCommand(sb.String())
-
-		if isComplete {
-			return cmd, nil
-		}
-
-		// line break is part of command -> append to command because it has been omitted by the line reader
-		sb.WriteRune('\n')
-		print(newLinePrompt)
+	}); err != nil {
+		return nil, err
 	}
+
+	cmd, _ := ParseCommand(sb.String())
+	return cmd, nil
 }
 
 func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) (string, error) {
@@ -180,12 +198,29 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 
 	putRune := func(r rune) {
 		sb.WriteRune(r)
-		print(string(r))
+		Print(string(r))
 		lineLen++
 	}
 
+	clearLine := func() {
+		sb.Reset()
+		str1 := strings.Repeat("\b", lineLen)
+		str2 := strings.Repeat(" ", lineLen)
+		Printf("%s%s%s", str1, str2, str1)
+		lineLen = 0
+	}
+
+	replaceLine := func(newLine string) {
+		clearLine()
+		sb.WriteString(newLine)
+		Print(newLine)
+		lineLen = len(newLine)
+	}
+
+	historyIndex := -1
+
 	for {
-		key, r, err := ReadKey()
+		key, r, err := readKey()
 		if err != nil {
 			return "", err
 		}
@@ -194,8 +229,39 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 		case KeyCtrlC:
 			return "", ErrControlC
 
+		case KeyEscape:
+			clearLine()
+
+		case KeyUp:
+			if getHistoryEntry != nil {
+				newCmd := getHistoryEntry(historyIndex + 1)
+				if newCmd != nil {
+					historyIndex++
+					replaceLine(GetCommandString(newCmd))
+				}
+			}
+		case KeyDown:
+			if getHistoryEntry != nil {
+				if historyIndex >= 0 {
+					historyIndex--
+
+					if historyIndex >= 0 {
+						newCmd := getHistoryEntry(historyIndex)
+						if newCmd != nil {
+							replaceLine(GetCommandString(newCmd))
+						} else {
+							// something seems to have changed -> return to initial state
+							historyIndex = -1
+							clearLine()
+						}
+					} else {
+						clearLine()
+					}
+				}
+			}
+
 		case KeyEnter:
-			println()
+			Println()
 			return sb.String(), nil
 
 		case KeyBackspace:
@@ -206,7 +272,7 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 					sb.WriteString(str[:len(str)-1])
 				}
 
-				print("\b \b")
+				Print("\b \b")
 				lineLen--
 			}
 
@@ -280,6 +346,17 @@ func ParseCommand(str string) (parts []string, isComplete bool) {
 	}
 
 	return cmd, (!escape && !singleQuote && !doubleQuote)
+}
+
+func GetCommandString(cmd []string) string {
+	var sb strings.Builder
+	for i, str := range cmd {
+		if i > 0 {
+			sb.WriteRune(' ')
+		}
+		sb.WriteString(Quote(str))
+	}
+	return sb.String()
 }
 
 // Quote returns a quoted string if it contains special chars.

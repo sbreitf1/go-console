@@ -5,12 +5,12 @@ import (
 )
 
 func main() {
-	history := console.NewCommandHistory(3)
+	bash := console.NewBash(5)
 
 	console.Println("type exit to leave")
 	for {
 		console.Print("command> ")
-		cmd, err := console.ReadCommand(history.GetHistoryEntry, nil)
+		cmd, err := bash.ReadCommand()
 		if err != nil {
 			if err == console.ErrControlC {
 				console.Println()
@@ -25,8 +25,6 @@ func main() {
 			for i := 1; i < len(cmd); i++ {
 				console.Printlnf("-> %q", cmd[i])
 			}
-
-			history.Put(cmd)
 
 			if cmd[0] == "exit" {
 				break
