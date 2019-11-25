@@ -5,10 +5,16 @@ import (
 )
 
 func main() {
-	console.Println("Press any key:")
-	key, char, err := console.ReadKey()
-	if err != nil {
-		panic(err)
+	console.Println("Press Escape to exit")
+	for {
+		key, char, err := console.ReadKey()
+		if err != nil {
+			panic(err)
+		}
+		console.Printlnf("%s -> %q", key, string(char))
+
+		if key == console.KeyEscape {
+			break
+		}
 	}
-	console.Printlnf("%s -> %q", key, string(char))
 }
