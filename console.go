@@ -13,8 +13,6 @@ var (
 	ErrControlC = fmt.Errorf("Ctrl+C")
 )
 
-//TODO class CLI for command line interpreting, history and auto-complete
-
 // Print writes a set of objects separated by whitespaces to Stdout.
 func Print(a ...interface{}) (int, error) {
 	return fmt.Print(a...)
@@ -32,17 +30,17 @@ func Println(a ...interface{}) (int, error) {
 
 // Printlnf writes a formatted string to Stdout and ends the line.
 func Printlnf(format string, a ...interface{}) (int, error) {
-	return fmt.Println(fmt.Sprintf(format, a...))
+	return Println(fmt.Sprintf(format, a...))
 }
 
 // Fatal calls Print and os.Exit(1).
 func Fatal(a ...interface{}) error {
-	return fatal(fmt.Print(a...))
+	return fatal(Print(a...))
 }
 
 // Fatalf calls Printf and os.Exit(1).
 func Fatalf(format string, a ...interface{}) error {
-	return fatal(fmt.Printf(format, a...))
+	return fatal(Printf(format, a...))
 }
 
 // Fatalln calls Println and os.Exit(1).
@@ -115,7 +113,7 @@ func ReadPassword() (string, error) {
 		return "", err
 	}
 	// print suppressed line-feed
-	fmt.Println()
+	Println()
 	return pw, nil
 }
 
@@ -155,14 +153,25 @@ func withReadKeyContext(f func() error) error {
 	return f()
 }
 
+// CommandHistoryEntry describes a function that returns a command from history at the given index.
+//
+// Index 0 denotes the latest command. nil is returned when the number of entries in history is exceeded. The index will never be negative.
 type CommandHistoryEntry func(index int) []string
+
+// CompletionCandidatesForEntry describes a function that returns all completion candidates for a given command and entry.
+//
+// The returned candidates must include the current user input for the given entry and are filtered by the entered prefix.
 type CompletionCandidatesForEntry func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
 
+// CompletionCandidate denotes a completion entity for a command.
 type CompletionCandidate struct {
+	// ReplaceString denotes the full replacement string of the completed command part.
 	ReplaceString string
-	IsFinal       bool
+	// IsFinal is true, when the replacement is the final value. This will also emit a whitespace after inserting the command part.
+	IsFinal bool
 }
 
+// ReadCommand reads a command from console input and offers history, aswell as completion functionality.
 func ReadCommand(getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
 	var sb strings.Builder
 
@@ -200,6 +209,12 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 		sb.WriteRune(r)
 		Print(string(r))
 		lineLen++
+	}
+
+	putString := func(str string) {
+		sb.WriteString(str)
+		Print(str)
+		lineLen += len(str)
 	}
 
 	clearLine := func() {
@@ -260,6 +275,42 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 				}
 			}
 
+		case KeyTab:
+			//TODO print on double-tab
+			if getCompletionCandidates != nil {
+				str := sb.String()
+				cmd, _ := ParseCommand(fmt.Sprintf("%s%s", currentCommand, str))
+
+				//TODO use next command part when space is typed
+				if len(cmd) == 0 {
+					cmd = []string{""}
+				} else {
+					if str[len(str)-1] == ' ' {
+						// new command part already started by whitespace, but not recognized as part of command
+						// -> append empty command part for processing
+						cmd = append(cmd, "")
+					}
+				}
+
+				prefix := cmd[len(cmd)-1]
+				candidates := filterCandidates(getCompletionCandidates(cmd, len(cmd)-1), prefix)
+				if candidates != nil {
+					if len(candidates) == 1 {
+						suffix := Escape(candidates[0].ReplaceString[len(prefix):])
+						putString(suffix)
+
+						if candidates[0].IsFinal {
+							putRune(' ')
+						}
+
+					} else {
+						longestCommonPrefix := findLongestCommonPrefix(candidates)
+						suffix := Escape(longestCommonPrefix[len(prefix):])
+						putString(suffix)
+					}
+				}
+			}
+
 		case KeyEnter:
 			Println()
 			return sb.String(), nil
@@ -285,6 +336,44 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 		default:
 			// ignore unknown special keys
 		}
+	}
+}
+
+func filterCandidates(candidates []CompletionCandidate, prefix string) []CompletionCandidate {
+	if candidates == nil {
+		return nil
+	}
+
+	filtered := make([]CompletionCandidate, 0)
+	for _, c := range candidates {
+		if strings.HasPrefix(c.ReplaceString, prefix) {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
+func findLongestCommonPrefix(candidates []CompletionCandidate) string {
+	if len(candidates) == 0 {
+		return ""
+	}
+
+	longestCommonPrefix := ""
+	for i := 1; ; i++ {
+		if len(candidates[0].ReplaceString) < i {
+			// prefix cannot be any longer
+			return longestCommonPrefix
+		}
+
+		prefix := candidates[0].ReplaceString[:i]
+		for _, c := range candidates {
+			if !strings.HasPrefix(c.ReplaceString, prefix) {
+				// the next prefix would not be valid for all candidates
+				return longestCommonPrefix
+			}
+		}
+
+		longestCommonPrefix = prefix
 	}
 }
 
@@ -348,6 +437,7 @@ func ParseCommand(str string) (parts []string, isComplete bool) {
 	return cmd, (!escape && !singleQuote && !doubleQuote)
 }
 
+// GetCommandString is the inverse function of Parse() and outputs a single string equal to the given command.
 func GetCommandString(cmd []string) string {
 	var sb strings.Builder
 	for i, str := range cmd {
@@ -362,5 +452,10 @@ func GetCommandString(cmd []string) string {
 // Quote returns a quoted string if it contains special chars.
 func Quote(str string) string {
 	//TODO quote string
+	return str
+}
+
+// Escape returns a string that escapes all special chars.
+func Escape(str string) string {
 	return str
 }
