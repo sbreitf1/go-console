@@ -2,21 +2,27 @@ package console
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
 )
 
 var (
 	// ErrExit can be returned in command handlers to exit the command line interface.
 	ErrExit = fmt.Errorf("exit application")
+
+	// remember the last time Tab was pressed to detect double-tab.
+	lastTabPress  = time.Unix(0, 0)
+	doubleTabSpan = 250 * time.Millisecond
 )
 
 // ReadCommand reads a command from console input and offers history, aswell as completion functionality.
-func ReadCommand(getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
+func ReadCommand(prompt string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
 	var sb strings.Builder
 
 	if err := withReadKeyContext(func() error {
 		for {
-			line, err := readCommandLine(sb.String(), getHistoryEntry, getCompletionCandidates)
+			line, err := readCommandLine(prompt, sb.String(), getHistoryEntry, getCompletionCandidates)
 			if err != nil {
 				return err
 			}
@@ -29,7 +35,7 @@ func ReadCommand(getHistoryEntry CommandHistoryEntry, getCompletionCandidates Co
 
 			// line break is part of command -> append to command because it has been omitted by the line reader
 			sb.WriteRune('\n')
-			Print("> ")
+			prompt = ""
 		}
 	}); err != nil {
 		return nil, err
@@ -39,7 +45,9 @@ func ReadCommand(getHistoryEntry CommandHistoryEntry, getCompletionCandidates Co
 	return cmd, nil
 }
 
-func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) (string, error) {
+func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) (string, error) {
+	Printf("%s> ", prompt)
+
 	var sb strings.Builder
 
 	lineLen := 0
@@ -67,6 +75,10 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 	replaceLine := func(newLine string) {
 		clearLine()
 		putString(newLine)
+	}
+
+	reprintLine := func() {
+		Printf("%s> %s", prompt, sb.String())
 	}
 
 	removeLastChar := func() {
@@ -126,7 +138,6 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 			}
 
 		case KeyTab:
-			//TODO print candidates on double-tab
 			if getCompletionCandidates != nil {
 				str := sb.String()
 				cmd, _ := ParseCommand(fmt.Sprintf("%s%s", currentCommand, str))
@@ -145,21 +156,36 @@ func readCommandLine(currentCommand string, getHistoryEntry CommandHistoryEntry,
 				prefix := cmd[len(cmd)-1]
 				candidates := filterCandidates(getCompletionCandidates(cmd, len(cmd)-1), prefix)
 				if candidates != nil && len(candidates) > 0 {
-					if len(candidates) == 1 {
-						suffix := Escape(candidates[0].ReplaceString[len(prefix):])
-						putString(suffix)
-
-						if candidates[0].IsFinal {
-							putRune(' ')
+					if time.Since(lastTabPress) < doubleTabSpan {
+						// double-tab detected -> print candidates
+						Println()
+						//TODO ask for large lists
+						list := make([]string, len(candidates))
+						for i := range candidates {
+							list[i] = Quote(candidates[i].ReplaceString)
 						}
+						sort.Strings(list)
+						PrintList(list)
+						reprintLine()
 
 					} else {
-						longestCommonPrefix := findLongestCommonPrefix(candidates)
-						suffix := Escape(longestCommonPrefix[len(prefix):])
-						putString(suffix)
+						if len(candidates) == 1 {
+							suffix := Escape(candidates[0].ReplaceString[len(prefix):])
+							putString(suffix)
+
+							if candidates[0].IsFinal {
+								putRune(' ')
+							}
+
+						} else {
+							longestCommonPrefix := findLongestCommonPrefix(candidates)
+							suffix := Escape(longestCommonPrefix[len(prefix):])
+							putString(suffix)
+						}
 					}
 				}
 			}
+			lastTabPress = time.Now()
 
 		case KeyEnter:
 			Println()
@@ -292,12 +318,28 @@ func GetCommandString(cmd []string) string {
 
 // Quote returns a quoted string if it contains special chars.
 func Quote(str string) string {
-	//TODO quote string
+	if NeedQuote(str) {
+		return fmt.Sprintf("\"%s\"", strings.ReplaceAll(strings.ReplaceAll(str, "\\", "\\\\"), "\"", "\\\""))
+	}
 	return str
+}
+
+// NeedQuote returns true when the string contains characters that need to be quoted or escaped.
+func NeedQuote(str string) bool {
+	if strings.Contains(str, " ") {
+		return true
+	}
+	return false
 }
 
 // Escape returns a string that escapes all special chars.
 func Escape(str string) string {
+	str = strings.ReplaceAll(str, "\\", "\\\\")
+	str = strings.ReplaceAll(str, "\"", "\\\"")
+	str = strings.ReplaceAll(str, "'", "\\'")
+	str = strings.ReplaceAll(str, " ", "\\ ")
+	str = strings.ReplaceAll(str, "\n", "\\\n")
+	str = strings.ReplaceAll(str, "\r", "\\\r")
 	return str
 }
 
@@ -383,7 +425,7 @@ func (b *CommandLineEnvironment) RegisterCommand(cmd Command) error {
 
 // ReadCommand reads a command for the configured environment.
 func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
-	cmd, err := ReadCommand(b.history.GetHistoryEntry, b.GetCompletionCandidatesForEntry)
+	cmd, err := ReadCommand(b.prompt(), b.history.GetHistoryEntry, b.GetCompletionCandidatesForEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +437,6 @@ func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
 func (b *CommandLineEnvironment) Run() error {
 	for {
-		Printf("%s> ", b.prompt())
 		cmd, err := b.ReadCommand()
 		if err != nil {
 			return err
@@ -509,3 +550,5 @@ type CompletionCandidate struct {
 	// IsFinal is true, when the replacement is the final value. This will also emit a whitespace after inserting the command part.
 	IsFinal bool
 }
+
+//TODO convenience method to better prepare completion candidates from arrays and maps

@@ -61,6 +61,13 @@ func fatal(_ int, err error) error {
 	return nil
 }
 
+// PrintList prints a list of strings in a regular grid.
+func PrintList(list []string) error {
+	//TODO print pretty list
+	_, err := Println(list)
+	return err
+}
+
 var lastCharWasCR bool
 
 // ReadLine reads a line from Stdin.

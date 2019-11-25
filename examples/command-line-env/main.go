@@ -12,7 +12,7 @@ func main() {
 	cle.RegisterCommand(console.NewExitCommand("exit"))
 
 	cle.SetExecUnknownCommandHandler(func(cmd string, args []string) error {
-		console.Printlnf("# %q", cmd)
+		console.Printlnf("Unknown command %q", cmd)
 		for _, arg := range args {
 			console.Printlnf("-> %q", arg)
 		}
@@ -69,7 +69,7 @@ func init() {
 	ducks["louie"] = "famous!"
 	ducks["fethry"] = "cousin"
 	ducks["whitewater"] = "from log jockey"
-	ducks["dudly"] = "architect"
+	ducks["dudly d."] = "architect"
 	ducks["dimwitty"] = "assistant"
 	ducks["moby"] = "moby dick?"
 	ducks["dugan"] = "very young"
