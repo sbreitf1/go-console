@@ -9,7 +9,36 @@ func main() {
 
 	cle := console.NewCommandLineEnvironment("cli")
 
-	cle.RegisterCommand(console.NewParameterlessCommand("exit", func(args []string) error { return console.ErrExit }))
+	cle.RegisterCommand(console.NewExitCommand("exit"))
+
+	cle.SetExecUnknownCommandHandler(func(cmd string, args []string) error {
+		console.Printlnf("# %q", cmd)
+		for _, arg := range args {
+			console.Printlnf("-> %q", arg)
+		}
+		return nil
+	})
+
+	cle.RegisterCommand(console.NewCustomCommand("duck",
+		func(cmd []string, index int) []console.CompletionCandidate {
+			candidates := make([]console.CompletionCandidate, 0)
+			for name := range ducks {
+				candidates = append(candidates, console.CompletionCandidate{ReplaceString: name, IsFinal: true})
+			}
+			return candidates
+		},
+		func(args []string) error {
+			if len(args) > 0 {
+				if duck, exists := ducks[args[0]]; exists {
+					console.Printlnf("-> %s duck: %s", args[0], duck)
+				} else {
+					console.Printlnf("-> unknown duck %q", args[0])
+				}
+			} else {
+				console.Println("-> missing duck name!")
+			}
+			return nil
+		}))
 
 	if err := cle.Run(); err != nil {
 		console.Println()
@@ -17,30 +46,31 @@ func main() {
 			panic(err)
 		}
 	}
+}
 
-	/*for {
-		console.Print("cli> ")
-		cmd, err := cle.ReadCommand()
-		if err != nil {
-			if err == console.ErrControlC {
-				console.Println()
-				break
-			}
+var (
+	ducks = make(map[string]string)
+)
 
-			panic(err)
-		}
-
-		if len(cmd) > 0 {
-			console.Printlnf("# %q", cmd[0])
-			for i := 1; i < len(cmd); i++ {
-				console.Printlnf("-> %q", cmd[i])
-			}
-
-			if cmd[0] == "exit" {
-				break
-			}
-		} else {
-			// empty command
-		}
-	}*/
+func init() {
+	ducks["pintail"] = "ancestor"
+	ducks["humperdink"] = "grandpa"
+	ducks["elvira"] = "grandma"
+	ducks["quackmore"] = "father of donald"
+	ducks["hortense"] = "mother of donald"
+	ducks["daphne"] = "aunt from donald"
+	ducks["eider"] = "uncle from donald"
+	ducks["lulubelle"] = "wife from eider"
+	ducks["dan"] = "sheriff"
+	ducks["donald"] = "famous!"
+	ducks["della"] = "mother from huey, dewey and louie"
+	ducks["huey"] = "famous!"
+	ducks["dewey"] = "famous!"
+	ducks["louie"] = "famous!"
+	ducks["fethry"] = "cousin"
+	ducks["whitewater"] = "from log jockey"
+	ducks["dudly"] = "architect"
+	ducks["dimwitty"] = "assistant"
+	ducks["moby"] = "moby dick?"
+	ducks["dugan"] = "very young"
 }
