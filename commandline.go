@@ -490,15 +490,7 @@ func (b *CommandLineEnvironment) Run() error {
 			}
 
 			if len(cmd) > 0 {
-				//TODO handle panic
-				var err error
-				if c, exists := b.commands[cmd[0]]; exists {
-					err = c.Exec(cmd[1:])
-				} else {
-					err = b.execUnknownHandler(cmd[0], cmd[1:])
-				}
-
-				if err != nil {
+				if err := b.ExecCommand(cmd[0], cmd[1:]); err != nil {
 					if err == ErrExit {
 						return nil
 					}
@@ -530,6 +522,15 @@ func (b *CommandLineEnvironment) GetCompletionCandidatesForEntry(currentCommand 
 	}
 
 	return cmd.GetCompletionCandidatesForEntry(currentCommand, entryIndex)
+}
+
+// ExecCommand executes a command as if it has been entered in terminal.
+func (b *CommandLineEnvironment) ExecCommand(cmd string, args []string) error {
+	//TODO handle panic
+	if c, exists := b.commands[cmd]; exists {
+		return c.Exec(args)
+	}
+	return b.execUnknownHandler(cmd, args)
 }
 
 // Command denotes a named command with completion and execution handler.
