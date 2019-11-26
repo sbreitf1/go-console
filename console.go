@@ -9,23 +9,42 @@ import (
 )
 
 var (
+	// DefaultIO can be used to redirect input and output sources.
+	DefaultIO IO
 	// ErrControlC is returned when a read command has been aborted by Ctrl+C user input.
 	ErrControlC = fmt.Errorf("Ctrl+C")
 )
 
+// IO defines functionality to handle console input and output.
+type IO interface {
+	Print(string) (int, error)
+	Read([]byte) (int, error)
+	//TODO ReadPassword and ReadKey
+}
+
+type defaultIO struct{}
+
+func init() {
+	DefaultIO = &defaultIO{}
+}
+
+func (d *defaultIO) Print(str string) (int, error) {
+	return fmt.Print(str)
+}
+
 // Print writes a set of objects separated by whitespaces to Stdout.
 func Print(a ...interface{}) (int, error) {
-	return fmt.Print(a...)
+	return DefaultIO.Print(fmt.Sprint(a...))
 }
 
 // Printf writes a formatted string to Stdout.
 func Printf(format string, a ...interface{}) (int, error) {
-	return fmt.Printf(format, a...)
+	return DefaultIO.Print(fmt.Sprintf(format, a...))
 }
 
 // Println writes a set of objects separated by whitespaces to Stdout and ends the line.
 func Println(a ...interface{}) (int, error) {
-	return fmt.Println(a...)
+	return DefaultIO.Print(fmt.Sprintln(a...))
 }
 
 // Printlnf writes a formatted string to Stdout and ends the line.
@@ -70,6 +89,10 @@ func PrintList(list []string) error {
 
 var lastCharWasCR bool
 
+func (d *defaultIO) Read(b []byte) (n int, err error) {
+	return os.Stdin.Read(b)
+}
+
 // ReadLine reads a line from Stdin.
 //
 // This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
@@ -82,7 +105,7 @@ func readLineANSI() (string, error) {
 
 	buf := make([]byte, 1)
 	for {
-		n, err := os.Stdin.Read(buf)
+		n, err := DefaultIO.Read(buf)
 		if err != nil {
 			return sb.String(), err
 		}

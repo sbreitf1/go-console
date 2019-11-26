@@ -343,19 +343,25 @@ func Escape(str string) string {
 	return str
 }
 
+// CommandHistory defines the interface to a history of commands.
+type CommandHistory interface {
+	Put([]string)
+	GetHistoryEntry(int) []string
+}
+
 // CommandHistory saves a fixed number of the latest commands.
-type CommandHistory struct {
+type memoryCommandHistory struct {
 	history    [][]string
 	count, pos int
 }
 
 // NewCommandHistory returns a new command history for maxCount entries.
-func NewCommandHistory(maxCount int) *CommandHistory {
-	return &CommandHistory{make([][]string, maxCount), 0, 0}
+func NewCommandHistory(maxCount int) CommandHistory {
+	return &memoryCommandHistory{make([][]string, maxCount), 0, 0}
 }
 
 // Put saves a new command to the history as latest entry.
-func (h *CommandHistory) Put(cmd []string) {
+func (h *memoryCommandHistory) Put(cmd []string) {
 	//TODO command deduplication
 
 	h.history[h.pos] = cmd
@@ -366,7 +372,7 @@ func (h *CommandHistory) Put(cmd []string) {
 }
 
 // GetHistoryEntry can be used as history callback for ReadCommand.
-func (h *CommandHistory) GetHistoryEntry(index int) []string {
+func (h *memoryCommandHistory) GetHistoryEntry(index int) []string {
 	if index >= h.count {
 		return nil
 	}
@@ -378,7 +384,7 @@ func (h *CommandHistory) GetHistoryEntry(index int) []string {
 type CommandLineEnvironment struct {
 	prompt             PromptHandler
 	execUnknownHandler ExecUnknownCommandHandler
-	history            *CommandHistory
+	history            CommandHistory
 	commands           map[string]Command
 }
 
