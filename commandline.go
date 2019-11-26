@@ -167,25 +167,39 @@ func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHisto
 						sort.Strings(list)
 						PrintList(list)
 						reprintLine()
+						// process next tab as single-press
+						lastTabPress = time.Unix(0, 0)
 
 					} else {
 						if len(candidates) == 1 {
-							suffix := Escape(candidates[0].ReplaceString[len(prefix):])
-							putString(suffix)
+							if len(candidates[0].ReplaceString) > 0 {
+								suffix := Escape(candidates[0].ReplaceString[len(prefix):])
+								putString(suffix)
 
-							if candidates[0].IsFinal {
-								putRune(' ')
+								if candidates[0].IsFinal {
+									putRune(' ')
+								}
+							} else {
+								// nothing changed? start double-tab combo
+								lastTabPress = time.Now()
 							}
 
 						} else {
 							longestCommonPrefix := findLongestCommonPrefix(candidates)
 							suffix := Escape(longestCommonPrefix[len(prefix):])
-							putString(suffix)
+							if len(suffix) > 0 {
+								putString(suffix)
+							} else {
+								// nothing changed? start double-tab combo
+								lastTabPress = time.Now()
+							}
 						}
 					}
+				} else {
+					// nothing changed? start double-tab combo
+					lastTabPress = time.Now()
 				}
 			}
-			lastTabPress = time.Now()
 
 		case KeyEnter:
 			Println()
@@ -386,6 +400,7 @@ type CommandLineEnvironment struct {
 	execUnknownHandler ExecUnknownCommandHandler
 	history            CommandHistory
 	commands           map[string]Command
+	//TODO custom error and panic handler
 }
 
 // PromptHandler defines a function that returns the current command line prompt.
