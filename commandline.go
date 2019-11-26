@@ -13,6 +13,8 @@ import (
 var (
 	// ErrExit can be returned in command handlers to exit the command line interface.
 	ErrExit = fmt.Errorf("exit application")
+	// ErrUnknownCommand is returned when executing an unknown command and no handler is defined.
+	ErrUnknownCommand = fmt.Errorf("unknown command")
 
 	// remember the last time Tab was pressed to detect double-tab.
 	lastTabPress  = time.Unix(0, 0)
@@ -426,7 +428,7 @@ func NewCommandLineEnvironment(prompt string) *CommandLineEnvironment {
 	return &CommandLineEnvironment{
 		prompt: func() string { return prompt },
 		execUnknownHandler: func(cmd string, _ []string) error {
-			_, err := Printlnf("Unknown function %q", cmd)
+			_, err := Printlnf("Unknown command %q", cmd)
 			return err
 		},
 		errorHandler: func(_ string, _ []string, err error) error {
@@ -529,6 +531,9 @@ func (b *CommandLineEnvironment) ExecCommand(cmd string, args []string) error {
 	//TODO handle panic
 	if c, exists := b.commands[cmd]; exists {
 		return c.Exec(args)
+	}
+	if b.execUnknownHandler == nil {
+		return ErrUnknownCommand
 	}
 	return b.execUnknownHandler(cmd, args)
 }
