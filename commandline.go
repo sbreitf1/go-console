@@ -2,6 +2,9 @@ package console
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -18,31 +21,34 @@ var (
 
 // ReadCommand reads a command from console input and offers history, aswell as completion functionality.
 func ReadCommand(prompt string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
+	var cmd []string
+	err := withReadKeyContext(func() error {
+		var err error
+		cmd, err = readCommand(prompt, getHistoryEntry, getCompletionCandidates)
+		return err
+	})
+	return cmd, err
+}
+
+func readCommand(prompt string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error) {
 	var sb strings.Builder
 
-	if err := withReadKeyContext(func() error {
-		for {
-			line, err := readCommandLine(prompt, sb.String(), getHistoryEntry, getCompletionCandidates)
-			if err != nil {
-				return err
-			}
-
-			sb.WriteString(line)
-
-			if _, isComplete := ParseCommand(sb.String()); isComplete {
-				return nil
-			}
-
-			// line break is part of command -> append to command because it has been omitted by the line reader
-			sb.WriteRune('\n')
-			prompt = ""
+	for {
+		line, err := readCommandLine(prompt, sb.String(), getHistoryEntry, getCompletionCandidates)
+		if err != nil {
+			return nil, err
 		}
-	}); err != nil {
-		return nil, err
-	}
 
-	cmd, _ := ParseCommand(sb.String())
-	return cmd, nil
+		sb.WriteString(line)
+
+		if cmd, isComplete := ParseCommand(sb.String()); isComplete {
+			return cmd, nil
+		}
+
+		// line break is part of command -> append to command because it has been omitted by the line reader
+		sb.WriteRune('\n')
+		prompt = ""
+	}
 }
 
 func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) (string, error) {
@@ -398,9 +404,10 @@ func (h *memoryCommandHistory) GetHistoryEntry(index int) []string {
 type CommandLineEnvironment struct {
 	prompt             PromptHandler
 	execUnknownHandler ExecUnknownCommandHandler
-	history            CommandHistory
-	commands           map[string]Command
-	//TODO custom error and panic handler
+	errorHandler       CommandErrorHandler
+	//TODO custom panic handler
+	history  CommandHistory
+	commands map[string]Command
 }
 
 // PromptHandler defines a function that returns the current command line prompt.
@@ -409,6 +416,11 @@ type PromptHandler func() string
 // ExecUnknownCommandHandler is called when processing an unknown command.
 type ExecUnknownCommandHandler func(cmd string, args []string) error
 
+// CommandErrorHandler is called when a command has returned an error.
+//
+// Should return nil when the error has been handled, otherwise the command handler will stop and return the error.
+type CommandErrorHandler func(cmd string, args []string, err error) error
+
 // NewCommandLineEnvironment returns a new command line environment.
 func NewCommandLineEnvironment(prompt string) *CommandLineEnvironment {
 	return &CommandLineEnvironment{
@@ -416,6 +428,10 @@ func NewCommandLineEnvironment(prompt string) *CommandLineEnvironment {
 		execUnknownHandler: func(cmd string, _ []string) error {
 			_, err := Printlnf("Unknown function %q", cmd)
 			return err
+		},
+		errorHandler: func(_ string, _ []string, err error) error {
+			Printlnf("ERR: %s", err.Error())
+			return nil
 		},
 		history:  NewCommandHistory(100),
 		commands: make(map[string]Command),
@@ -432,9 +448,14 @@ func (b *CommandLineEnvironment) SetPrompt(prompt PromptHandler) {
 	b.prompt = prompt
 }
 
-// SetExecUnknownCommandHandler sets callback function to handle unknown commands.
+// SetExecUnknownCommandHandler sets the callback function to handle unknown commands.
 func (b *CommandLineEnvironment) SetExecUnknownCommandHandler(handler ExecUnknownCommandHandler) {
 	b.execUnknownHandler = handler
+}
+
+// SetErrorHandler sets the callback function to handle errors from commands. Set to nil to stop on all errors.
+func (b *CommandLineEnvironment) SetErrorHandler(handler CommandErrorHandler) {
+	b.errorHandler = handler
 }
 
 // RegisterCommand adds a new command to the command line environment.
@@ -446,7 +467,11 @@ func (b *CommandLineEnvironment) RegisterCommand(cmd Command) error {
 
 // ReadCommand reads a command for the configured environment.
 func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
-	cmd, err := ReadCommand(b.prompt(), b.history.GetHistoryEntry, b.GetCompletionCandidatesForEntry)
+	return b.readCommand(ReadCommand)
+}
+
+func (b *CommandLineEnvironment) readCommand(handler func(prompt string, getHistoryEntry CommandHistoryEntry, getCompletionCandidates CompletionCandidatesForEntry) ([]string, error)) ([]string, error) {
+	cmd, err := handler(b.prompt(), b.history.GetHistoryEntry, b.GetCompletionCandidatesForEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -457,31 +482,34 @@ func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
 
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
 func (b *CommandLineEnvironment) Run() error {
-	for {
-		cmd, err := b.ReadCommand()
-		if err != nil {
-			return err
-		}
+	return withReadKeyContext(func() error {
+		for {
+			cmd, err := b.readCommand(readCommand)
+			if err != nil {
+				return err
+			}
 
-		if len(cmd) > 0 {
-			if c, exists := b.commands[cmd[0]]; exists {
-				if err := c.Exec(cmd[1:]); err != nil {
-					if err == ErrExit {
-						return nil
-					}
-					return err
+			if len(cmd) > 0 {
+				//TODO handle panic
+				var err error
+				if c, exists := b.commands[cmd[0]]; exists {
+					err = c.Exec(cmd[1:])
+				} else {
+					err = b.execUnknownHandler(cmd[0], cmd[1:])
 				}
 
-			} else {
-				if err := b.execUnknownHandler(cmd[0], cmd[1:]); err != nil {
+				if err != nil {
 					if err == ErrExit {
 						return nil
 					}
-					return err
+					if b.errorHandler == nil {
+						return err
+					}
+					b.errorHandler(cmd[0], cmd[1:], err)
 				}
 			}
 		}
-	}
+	})
 }
 
 // GetCompletionCandidatesForEntry returns completion candidates for the given command. This method can be used as callback for ReadCommand.
@@ -570,6 +598,80 @@ type CompletionCandidate struct {
 	ReplaceString string
 	// IsFinal is true, when the replacement is the final value. This will also emit a whitespace after inserting the command part.
 	IsFinal bool
+}
+
+// BrowseCandidates returns the completion candidates for browsing the given directory.
+//
+// The typical usage is to browse the current working directory using the current command entry:
+// BrowseCandidates("", currentCommand[entryIndex], ...)
+func BrowseCandidates(workingDir, currentCommandEntry string, withFiles bool) ([]CompletionCandidate, error) {
+	if len(workingDir) == 0 {
+		var err error
+		workingDir, err = os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//TODO support for . and ..
+
+	var dir string
+	if filepath.IsAbs(currentCommandEntry) {
+		// absolute paths completely ignore the working dir
+		if len(currentCommandEntry) == 1 {
+			dir = currentCommandEntry
+		} else {
+			if strings.HasSuffix(currentCommandEntry, string(filepath.Separator)) {
+				// search the given dir
+				dir = currentCommandEntry
+			} else {
+				// search the parent dir of the given path (only a desired prefix has been entered yet)
+				dir = filepath.Dir(currentCommandEntry)
+			}
+		}
+	} else {
+		if len(currentCommandEntry) == 0 {
+			// no path entered yet? search in working dir
+			dir = workingDir
+		} else {
+			if strings.HasSuffix(currentCommandEntry, string(filepath.Separator)) {
+				// search the given dir
+				dir = filepath.Join(workingDir, currentCommandEntry)
+			} else {
+				// search the parent dir of the given path (only a desired prefix has been entered yet)
+				dir = filepath.Dir(filepath.Join(workingDir, currentCommandEntry))
+			}
+		}
+		// path separator is part of the working directory
+		if !strings.HasSuffix(workingDir, string(filepath.Separator)) {
+			workingDir += string(filepath.Separator)
+		}
+	}
+
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := make([]CompletionCandidate, 0)
+	for _, f := range files {
+		if withFiles || f.IsDir() {
+			var suffix string
+			if filepath.IsAbs(currentCommandEntry) {
+				// complete path is required
+				suffix = filepath.Join(dir, f.Name())
+			} else {
+				// only the part without working dir is required
+				suffix = filepath.Join(dir, f.Name())[len(workingDir):]
+			}
+			if f.IsDir() {
+				// end path with path separator to allow tabbing to child dir
+				suffix += string(filepath.Separator)
+			}
+			candidates = append(candidates, CompletionCandidate{ReplaceString: suffix, IsFinal: !f.IsDir()})
+		}
+	}
+	return candidates, nil
 }
 
 //TODO convenience method to better prepare completion candidates from arrays and maps
