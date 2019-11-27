@@ -11,11 +11,6 @@ import (
 )
 
 var (
-	// ErrExit can be returned in command handlers to exit the command line interface.
-	ErrExit = fmt.Errorf("exit application")
-	// ErrUnknownCommand is returned when executing an unknown command and no handler is defined.
-	ErrUnknownCommand = fmt.Errorf("unknown command")
-
 	// remember the last time Tab was pressed to detect double-tab.
 	lastTabPress  = time.Unix(0, 0)
 	doubleTabSpan = 250 * time.Millisecond
@@ -110,9 +105,11 @@ func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHisto
 			return "", err
 		}
 
+		//TODO move caret along line
+
 		switch key {
 		case KeyCtrlC:
-			return "", ErrControlC
+			return "", ErrControlC()
 
 		case KeyEscape:
 			clearLine()
@@ -404,12 +401,18 @@ func (h *memoryCommandHistory) GetHistoryEntry(index int) []string {
 
 // CommandLineEnvironment represents a command line interface environment with history and auto-completion.
 type CommandLineEnvironment struct {
-	prompt             PromptHandler
-	execUnknownHandler ExecUnknownCommandHandler
-	errorHandler       CommandErrorHandler
-	//TODO custom panic handler
-	history  CommandHistory
-	commands map[string]Command
+	// Prompt is called when displaying a command line prompt.
+	Prompt PromptHandler
+	// UnknownCommandHandler is called to handle unknown commands. Can be nil to return an unknown command error instead.
+	UnknownCommandHandler ExecUnknownCommandHandler
+	// UnknownCommandCompletionHandler is used for completion of unknown commands.
+	UnknownCommandCompletionHandler CompletionCandidatesForEntry
+	// ErrorHandler is called to handle errors returned from commands. Use RecoverPanickedCommands to also handle panics here.
+	ErrorHandler CommandErrorHandler
+	// RecoverPanickedCommands sets whether the ErrorHandler is also called for panics.
+	RecoverPanickedCommands bool
+	history                 CommandHistory
+	commands                map[string]Command
 }
 
 // PromptHandler defines a function that returns the current command line prompt.
@@ -424,45 +427,42 @@ type ExecUnknownCommandHandler func(cmd string, args []string) error
 type CommandErrorHandler func(cmd string, args []string, err error) error
 
 // NewCommandLineEnvironment returns a new command line environment.
-func NewCommandLineEnvironment(prompt string) *CommandLineEnvironment {
+func NewCommandLineEnvironment() *CommandLineEnvironment {
 	return &CommandLineEnvironment{
-		prompt: func() string { return prompt },
-		execUnknownHandler: func(cmd string, _ []string) error {
+		Prompt: func() string { return "cle" },
+		UnknownCommandHandler: func(cmd string, _ []string) error {
 			_, err := Printlnf("Unknown command %q", cmd)
 			return err
 		},
-		errorHandler: func(_ string, _ []string, err error) error {
-			Printlnf("ERR: %s", err.Error())
+		UnknownCommandCompletionHandler: nil,
+		ErrorHandler: func(_ string, _ []string, err error) error {
+			if IsErrCommandPanicked(err) {
+				Printlnf("PANIC: %s", err.Error())
+			} else {
+				Printlnf("ERROR: %s", err.Error())
+			}
 			return nil
 		},
-		history:  NewCommandHistory(100),
-		commands: make(map[string]Command),
+		RecoverPanickedCommands: true,
+		history:                 NewCommandHistory(100),
+		commands:                make(map[string]Command),
 	}
 }
 
 // SetStaticPrompt sets a constant prompt to display for command input.
 func (b *CommandLineEnvironment) SetStaticPrompt(prompt string) {
-	b.prompt = func() string { return prompt }
+	b.Prompt = func() string { return prompt }
 }
 
-// SetPrompt sets the handler for dynamic prompts.
-func (b *CommandLineEnvironment) SetPrompt(prompt PromptHandler) {
-	b.prompt = prompt
-}
-
-// SetExecUnknownCommandHandler sets the callback function to handle unknown commands.
-func (b *CommandLineEnvironment) SetExecUnknownCommandHandler(handler ExecUnknownCommandHandler) {
-	b.execUnknownHandler = handler
-}
-
-// SetErrorHandler sets the callback function to handle errors from commands. Set to nil to stop on all errors.
-func (b *CommandLineEnvironment) SetErrorHandler(handler CommandErrorHandler) {
-	b.errorHandler = handler
+func (b *CommandLineEnvironment) prompt() string {
+	if b.Prompt == nil {
+		return ""
+	}
+	return b.Prompt()
 }
 
 // RegisterCommand adds a new command to the command line environment.
 func (b *CommandLineEnvironment) RegisterCommand(cmd Command) error {
-	//TODO check name and conflicts
 	b.commands[cmd.Name()] = cmd
 	return nil
 }
@@ -493,13 +493,13 @@ func (b *CommandLineEnvironment) Run() error {
 
 			if len(cmd) > 0 {
 				if err := b.ExecCommand(cmd[0], cmd[1:]); err != nil {
-					if err == ErrExit {
+					if IsErrExit(err) {
 						return nil
 					}
-					if b.errorHandler == nil {
+					if b.ErrorHandler == nil {
 						return err
 					}
-					b.errorHandler(cmd[0], cmd[1:], err)
+					b.ErrorHandler(cmd[0], cmd[1:], err)
 				}
 			}
 		}
@@ -519,7 +519,9 @@ func (b *CommandLineEnvironment) GetCompletionCandidatesForEntry(currentCommand 
 
 	cmd, exists := b.commands[currentCommand[0]]
 	if !exists {
-		//TODO handle unknown commands
+		if b.UnknownCommandCompletionHandler != nil {
+			return b.UnknownCommandCompletionHandler(currentCommand, entryIndex)
+		}
 		return nil
 	}
 
@@ -528,14 +530,30 @@ func (b *CommandLineEnvironment) GetCompletionCandidatesForEntry(currentCommand 
 
 // ExecCommand executes a command as if it has been entered in terminal.
 func (b *CommandLineEnvironment) ExecCommand(cmd string, args []string) error {
-	//TODO handle panic
-	if c, exists := b.commands[cmd]; exists {
-		return c.Exec(args)
+	var recovered interface{}
+
+	err := func() error {
+		defer func() {
+			if b.RecoverPanickedCommands {
+				// recover from panic and save reason for error handling
+				recovered = recover()
+			}
+		}()
+
+		// execute command
+		if c, exists := b.commands[cmd]; exists {
+			return c.Exec(args)
+		}
+		if b.UnknownCommandHandler == nil {
+			return ErrUnknownCommand(cmd)
+		}
+		return b.UnknownCommandHandler(cmd, args)
+	}()
+
+	if recovered != nil {
+		return ErrCommandPanicked(recovered)
 	}
-	if b.execUnknownHandler == nil {
-		return ErrUnknownCommand
-	}
-	return b.execUnknownHandler(cmd, args)
+	return err
 }
 
 // Command denotes a named command with completion and execution handler.
@@ -575,7 +593,7 @@ func (c *customCommand) Exec(args []string) error {
 
 // NewExitCommand returns a named command to stop command line processing.
 func NewExitCommand(name string) Command {
-	return &customCommand{name, func([]string, int) []CompletionCandidate { return nil }, func([]string) error { return ErrExit }}
+	return &customCommand{name, func([]string, int) []CompletionCandidate { return nil }, func([]string) error { return ErrExit() }}
 }
 
 // NewParameterlessCommand returns a named command that takes no parameters.
@@ -679,5 +697,7 @@ func BrowseCandidates(workingDir, currentCommandEntry string, withFiles bool) ([
 	}
 	return candidates, nil
 }
+
+//TODO command completion chain handler for fixed args
 
 //TODO convenience method to better prepare completion candidates from arrays and maps

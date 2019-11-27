@@ -11,15 +11,15 @@ import (
 func main() {
 	console.Println("Demo browser")
 
-	cle := console.NewCommandLineEnvironment("")
-	cle.SetPrompt(func() string {
+	cle := console.NewCommandLineEnvironment()
+	cle.Prompt = func() string {
 		pwd, err := os.Getwd()
 		if err != nil {
 			return ""
 		}
 		// display current working directory in nice colors as prompt
 		return fmt.Sprintf("\033[1;34m%s\033[0m", pwd)
-	})
+	}
 
 	cle.RegisterCommand(console.NewExitCommand("exit"))
 
@@ -58,7 +58,7 @@ func main() {
 
 	if err := cle.Run(); err != nil {
 		console.Println()
-		if err != console.ErrControlC {
+		if !console.IsErrControlC(err) {
 			panic(err)
 		}
 	}

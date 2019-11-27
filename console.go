@@ -6,20 +6,23 @@ import (
 	"strings"
 
 	"github.com/eiannone/keyboard"
+	"golang.org/x/crypto/ssh/terminal"
+)
+
+const (
+	listSpaceLen = 2
 )
 
 var (
 	// DefaultIO can be used to redirect input and output sources.
 	DefaultIO IO
-	// ErrControlC is returned when a read command has been aborted by Ctrl+C user input.
-	ErrControlC = fmt.Errorf("Ctrl+C")
 )
 
 // IO defines functionality to handle console input and output.
 type IO interface {
 	Print(string) (int, error)
 	Read([]byte) (int, error)
-	//TODO ReadPassword and ReadKey
+	//TODO ReadPassword, ReadKey, GetSize
 }
 
 type defaultIO struct{}
@@ -82,9 +85,55 @@ func fatal(_ int, err error) error {
 
 // PrintList prints a list of strings in a regular grid.
 func PrintList(list []string) error {
-	//TODO print pretty list
-	_, err := Println(list)
+	width, _, err := GetSize()
+	if err != nil {
+		return err
+	}
+
+	maxItemLen := 0
+	for _, item := range list {
+		if len(item) > maxItemLen {
+			maxItemLen = len(item)
+		}
+	}
+
+	var sb strings.Builder
+	space := strings.Repeat(" ", listSpaceLen)
+
+	itemsPerLine := (width + listSpaceLen) / (maxItemLen + listSpaceLen)
+	lineCount := len(list) / itemsPerLine
+	if len(list) > (lineCount * itemsPerLine) {
+		lineCount++
+	}
+
+	if itemsPerLine == 0 {
+		// fallback for very small terminals (or exceedingly large list items)
+		itemsPerLine = 1
+		lineCount = len(list)
+	}
+
+	for l := 0; l < lineCount; l++ {
+		for i := 0; i < itemsPerLine; i++ {
+			index := l*itemsPerLine + i
+			if index >= len(list) {
+				break
+			}
+			if i > 0 {
+				sb.WriteString(space)
+			}
+			sb.WriteString(list[index])
+			sb.WriteString(strings.Repeat(" ", maxItemLen-len(list[index])))
+		}
+		sb.WriteString(fmt.Sprintln())
+	}
+
+	_, err = Print(sb.String())
 	return err
+}
+
+// GetSize returns the current terminal dimensions in characters.
+func GetSize() (int, int, error) {
+	return terminal.GetSize(0)
 }
 
 var lastCharWasCR bool

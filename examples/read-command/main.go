@@ -9,10 +9,9 @@ func main() {
 
 	console.Println("type exit to leave")
 	for {
-		console.Print("command> ")
-		cmd, err := console.ReadCommand(history.GetHistoryEntry, nil)
+		cmd, err := console.ReadCommand("command", history.GetHistoryEntry, nil)
 		if err != nil {
-			if err == console.ErrControlC {
+			if console.IsErrControlC(err) {
 				console.Println()
 				break
 			}

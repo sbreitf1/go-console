@@ -7,17 +7,17 @@ import (
 func main() {
 	console.Println("Demo command line interface")
 
-	cle := console.NewCommandLineEnvironment("cli")
+	cle := console.NewCommandLineEnvironment()
 
 	cle.RegisterCommand(console.NewExitCommand("exit"))
 
-	cle.SetExecUnknownCommandHandler(func(cmd string, args []string) error {
+	cle.UnknownCommandHandler = func(cmd string, args []string) error {
 		console.Printlnf("Unknown command %q", cmd)
 		for _, arg := range args {
 			console.Printlnf("-> %q", arg)
 		}
 		return nil
-	})
+	}
 
 	cle.RegisterCommand(console.NewCustomCommand("duck",
 		func(cmd []string, index int) []console.CompletionCandidate {
@@ -42,7 +42,7 @@ func main() {
 
 	if err := cle.Run(); err != nil {
 		console.Println()
-		if err != console.ErrControlC {
+		if !console.IsErrControlC(err) {
 			panic(err)
 		}
 	}
