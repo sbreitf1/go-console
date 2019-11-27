@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/eiannone/keyboard"
 	"golang.org/x/crypto/ssh/terminal"
@@ -21,11 +22,15 @@ var (
 // IO defines functionality to handle console input and output.
 type IO interface {
 	Print(string) (int, error)
-	Read([]byte) (int, error)
-	//TODO ReadPassword, ReadKey, GetSize
+	ReadLine() (string, error)
+	ReadPassword() (string, error)
+	ReadKey() (Key, rune, error)
+	GetSize() (int, int, error)
 }
 
-type defaultIO struct{}
+type defaultIO struct {
+	lastCharWasCR bool
+}
 
 func init() {
 	DefaultIO = &defaultIO{}
@@ -56,31 +61,27 @@ func Printlnf(format string, a ...interface{}) (int, error) {
 }
 
 // Fatal calls Print and os.Exit(1).
-func Fatal(a ...interface{}) error {
-	return fatal(Print(a...))
+func Fatal(a ...interface{}) {
+	fatal(Print(a...))
 }
 
 // Fatalf calls Printf and os.Exit(1).
-func Fatalf(format string, a ...interface{}) error {
-	return fatal(Printf(format, a...))
+func Fatalf(format string, a ...interface{}) {
+	fatal(Printf(format, a...))
 }
 
 // Fatalln calls Println and os.Exit(1).
-func Fatalln(a ...interface{}) error {
-	return fatal(Println(a...))
+func Fatalln(a ...interface{}) {
+	fatal(Println(a...))
 }
 
 // Fatallnf calls Printlnf and os.Exit(1).
-func Fatallnf(format string, a ...interface{}) error {
-	return fatal(Printlnf(format, a...))
+func Fatallnf(format string, a ...interface{}) {
+	fatal(Printlnf(format, a...))
 }
 
-func fatal(_ int, err error) error {
-	if err != nil {
-		return err
-	}
+func fatal(int, error) {
 	os.Exit(1)
-	return nil
 }
 
 // PrintList prints a list of strings in a regular grid.
@@ -131,61 +132,97 @@ func PrintList(list []string) error {
 	return err
 }
 
-// GetSize returns the current terminal dimensions in characters.
-func GetSize() (int, int, error) {
+func (d *defaultIO) GetSize() (int, int, error) {
 	return terminal.GetSize(0)
 }
 
-var lastCharWasCR bool
+// GetSize returns the current terminal dimensions in characters.
+func GetSize() (int, int, error) {
+	return DefaultIO.GetSize()
+}
 
-func (d *defaultIO) Read(b []byte) (n int, err error) {
-	return os.Stdin.Read(b)
+func (d *defaultIO) ReadLine() (string, error) {
+	//TODO configurable encoding
+	return d.readLine(d.readRuneUTF8)
+}
+
+func (d *defaultIO) readLine(readRune func() (rune, error)) (string, error) {
+	var sb strings.Builder
+
+	for {
+		r, err := readRune()
+		if err != nil {
+			return sb.String(), err
+		}
+
+		if r == '\r' {
+			d.lastCharWasCR = true
+			return sb.String(), nil
+		} else if r == '\n' {
+			if d.lastCharWasCR {
+				// just ignore that char to be compatible with windows \r\n
+				d.lastCharWasCR = false
+			} else {
+				d.lastCharWasCR = false
+				return sb.String(), nil
+			}
+		} else {
+			d.lastCharWasCR = false
+			sb.WriteRune(r)
+		}
+	}
+}
+
+func (*defaultIO) readRuneANSI() (rune, error) {
+	var buf = [1]byte{0}
+	_, err := os.Stdin.Read(buf[:])
+	if err != nil {
+		return 0, err
+	}
+	return rune(buf[0]), nil
+}
+
+func (*defaultIO) readRuneUTF8() (rune, error) {
+	// utf8 runes can take 1 up to 4 bytes
+	var buf = [4]byte{0}
+	_, err := os.Stdin.Read(buf[0:1])
+	if err != nil {
+		return 0, err
+	}
+
+	// most common case: rune takes exactly one byte
+	if !utf8.FullRune(buf[0:1]) {
+		// not complete yet? read next byte and check again
+		for i := 1; i < 4; i++ {
+			// put next byte into buffer
+			_, err := os.Stdin.Read(buf[i : i+1])
+			if err != nil {
+				return 0, err
+			}
+			if i < 3 {
+				// skip check for last rune -> will terminate either way
+				if utf8.FullRune(buf[0 : i+1]) {
+					break
+				}
+			}
+		}
+	}
+
+	r, _ := utf8.DecodeRune(buf[:])
+	return r, nil
 }
 
 // ReadLine reads a line from Stdin.
 //
 // This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
 func ReadLine() (string, error) {
-	return readLineANSI()
+	return DefaultIO.ReadLine()
 }
 
-func readLineANSI() (string, error) {
-	var sb strings.Builder
-
-	buf := make([]byte, 1)
-	for {
-		n, err := DefaultIO.Read(buf)
-		if err != nil {
-			return sb.String(), err
-		}
-
-		if n > 0 {
-			if buf[0] == '\r' {
-				lastCharWasCR = true
-				return sb.String(), nil
-			} else if buf[0] == '\n' {
-				if lastCharWasCR {
-					// just ignore that char to be compatible with windows \r\n
-					lastCharWasCR = false
-				} else {
-					lastCharWasCR = false
-					return sb.String(), nil
-				}
-			} else {
-				lastCharWasCR = false
-				sb.Write(buf)
-			}
-		}
-	}
-}
-
-// ReadPassword reads a line from Stdin while hiding the user input.
-//
-// This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
-func ReadPassword() (string, error) {
+func (d *defaultIO) ReadPassword() (string, error) {
 	var pw string
 	if err := withoutEcho(func() error {
-		line, err := ReadLine()
+		line, err := d.ReadLine()
 		pw = line
 		return err
 	}); err != nil {
@@ -196,8 +233,14 @@ func ReadPassword() (string, error) {
 	return pw, nil
 }
 
-// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
-func ReadKey() (Key, rune, error) {
+// ReadPassword reads a line from Stdin while hiding the user input.
+//
+// This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
+func ReadPassword() (string, error) {
+	return DefaultIO.ReadPassword()
+}
+
+func (d *defaultIO) ReadKey() (Key, rune, error) {
 	var key Key
 	var r rune
 	var err error
@@ -206,6 +249,11 @@ func ReadKey() (Key, rune, error) {
 		return nil
 	})
 	return key, r, err
+}
+
+// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
+func ReadKey() (Key, rune, error) {
+	return DefaultIO.ReadKey()
 }
 
 func readKey() (Key, rune, error) {

@@ -11,7 +11,7 @@ func main() {
 	for {
 		cmd, err := console.ReadCommand("command", history.GetHistoryEntry, nil)
 		if err != nil {
-			if console.IsErrControlC(err) {
+			if console.IsErrCtrlC(err) {
 				console.Println()
 				break
 			}

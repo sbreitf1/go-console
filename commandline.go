@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const (
+	maxAutoPrintListLen = 100
+)
+
 var (
 	// remember the last time Tab was pressed to detect double-tab.
 	lastTabPress  = time.Unix(0, 0)
@@ -109,7 +113,7 @@ func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHisto
 
 		switch key {
 		case KeyCtrlC:
-			return "", ErrControlC()
+			return "", ErrCtrlC()
 
 		case KeyEscape:
 			clearLine()
@@ -164,7 +168,8 @@ func readCommandLine(prompt, currentCommand string, getHistoryEntry CommandHisto
 					if time.Since(lastTabPress) < doubleTabSpan {
 						// double-tab detected -> print candidates
 						Println()
-						//TODO ask for large lists
+
+						//TODO ask for large lists (>maxAutoPrintListLen)
 						list := make([]string, len(candidates))
 						for i := range candidates {
 							list[i] = Quote(candidates[i].ReplaceString)

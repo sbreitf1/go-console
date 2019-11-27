@@ -29,20 +29,20 @@ func IsErrExit(err error) bool {
 /* ###                 ctrl + c                 ### */
 /* ################################################ */
 
-type errControlC struct{}
+type errCtrlC struct{}
 
-func (e errControlC) Error() string {
+func (e errCtrlC) Error() string {
 	return "Ctrl+C"
 }
 
-// ErrControlC returns a new error that indicates user input Ctrl+C.
-func ErrControlC() error {
-	return errControlC{}
+// ErrCtrlC returns a new error that indicates user input Ctrl+C.
+func ErrCtrlC() error {
+	return errCtrlC{}
 }
 
-// IsErrControlC returns true when the error indicates user input Ctrl+C.
-func IsErrControlC(err error) bool {
-	_, ok := err.(errControlC)
+// IsErrCtrlC returns true when the error indicates user input Ctrl+C.
+func IsErrCtrlC(err error) bool {
+	_, ok := err.(errCtrlC)
 	return ok
 }
 

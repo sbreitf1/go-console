@@ -58,7 +58,7 @@ func main() {
 
 	if err := cle.Run(); err != nil {
 		console.Println()
-		if !console.IsErrControlC(err) {
+		if !console.IsErrCtrlC(err) {
 			panic(err)
 		}
 	}
