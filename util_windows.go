@@ -8,6 +8,8 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const newline = "\r\n"
+
 func withoutEcho(f func() error) error {
 	fd := os.Stdin.Fd()
 
@@ -35,4 +37,9 @@ func withoutEcho(f func() error) error {
 	defer file.Close()
 
 	return f()
+}
+
+func supportsColors() bool {
+	//TODO check for ANSI color support
+	return false
 }

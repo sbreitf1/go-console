@@ -26,6 +26,7 @@ type IO interface {
 	ReadPassword() (string, error)
 	ReadKey() (Key, rune, error)
 	GetSize() (int, int, error)
+	SupportsColors() bool
 }
 
 type defaultIO struct {
@@ -52,7 +53,7 @@ func Printf(format string, a ...interface{}) (int, error) {
 
 // Println writes a set of objects separated by whitespaces to Stdout and ends the line.
 func Println(a ...interface{}) (int, error) {
-	return DefaultIO.Print(fmt.Sprintln(a...))
+	return DefaultIO.Print(fmt.Sprintf("%s%s", fmt.Sprint(a...), newline))
 }
 
 // Printlnf writes a formatted string to Stdout and ends the line.
@@ -125,7 +126,7 @@ func PrintList(list []string) error {
 			sb.WriteString(list[index])
 			sb.WriteString(strings.Repeat(" ", maxItemLen-len(list[index])))
 		}
-		sb.WriteString(fmt.Sprintln())
+		sb.WriteString(newline)
 	}
 
 	_, err = Print(sb.String())
@@ -133,12 +134,21 @@ func PrintList(list []string) error {
 }
 
 func (d *defaultIO) GetSize() (int, int, error) {
-	return terminal.GetSize(0)
+	return terminal.GetSize(int(os.Stdout.Fd()))
 }
 
 // GetSize returns the current terminal dimensions in characters.
 func GetSize() (int, int, error) {
 	return DefaultIO.GetSize()
+}
+
+func (d *defaultIO) SupportsColors() bool {
+	return supportsColors()
+}
+
+// SupportsColors returns true when the current terminal supports ANSI colors.
+func SupportsColors() bool {
+	return DefaultIO.SupportsColors()
 }
 
 func (d *defaultIO) ReadLine() (string, error) {

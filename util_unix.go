@@ -8,6 +8,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const newline = "\n"
+
 const ioctlReadTermios = unix.TCGETS
 const ioctlWriteTermios = unix.TCSETS
 
@@ -30,4 +32,8 @@ func withoutEcho(f func() error) error {
 	defer unix.IoctlSetTermios(fd, ioctlWriteTermios, termios)
 
 	return f()
+}
+
+func supportsColors() bool {
+	return true
 }

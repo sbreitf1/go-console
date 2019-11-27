@@ -17,8 +17,12 @@ func main() {
 		if err != nil {
 			return ""
 		}
-		// display current working directory in nice colors as prompt
-		return fmt.Sprintf("\033[1;34m%s\033[0m", pwd)
+		if console.SupportsColors() {
+			// display current working directory in nice colors as prompt
+			return fmt.Sprintf("\033[1;34m%s\033[0m", pwd)
+		}
+		// fallback: no colors supported
+		return pwd
 	}
 
 	cle.RegisterCommand(console.NewExitCommand("exit"))
