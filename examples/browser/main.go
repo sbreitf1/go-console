@@ -24,12 +24,7 @@ func main() {
 	cle.RegisterCommand(console.NewExitCommand("exit"))
 
 	cle.RegisterCommand(console.NewCustomCommand("cd",
-		func(cmd []string, index int) []console.CompletionCandidate {
-			// "" will be replaced with the current working dir. do not allow to cd into files
-			candidates, _ := console.BrowseCandidates("", cmd[index], false)
-			// ignore errors for completion
-			return candidates
-		},
+		console.NewFixedArgCompletion(console.NewLocalFileSystemArgCompletion(false)),
 		func(args []string) error {
 			if len(args) == 0 {
 				// no dir to enter specified

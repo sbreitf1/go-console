@@ -21,21 +21,33 @@ func main() {
 	}
 	cle.ErrorHandler = errHandler
 
-	cle.RegisterCommand(console.NewParameterlessCommand("toggle", func(args []string) error {
-		if len(args) > 0 && args[0] == "e" {
-			if cle.ErrorHandler == nil {
-				cle.ErrorHandler = errHandler
-				console.Printlnf("Handle Errors")
+	cle.RegisterCommand(console.NewCustomCommand("toggle",
+		console.NewFixedArgCompletion(console.NewOneOfArgCompletion("error", "panic")),
+		func(args []string) error {
+			if len(args) > 0 {
+				switch args[0] {
+				case "error":
+					if cle.ErrorHandler == nil {
+						cle.ErrorHandler = errHandler
+						console.Printlnf("Handle Errors")
+					} else {
+						cle.ErrorHandler = nil
+						console.Printlnf("Escalate Errors")
+					}
+
+				case "panic":
+					cle.RecoverPanickedCommands = !cle.RecoverPanickedCommands
+					console.Printlnf("Recover Panics = %v", cle.RecoverPanickedCommands)
+
+				default:
+					console.Printlnf("invalid arg %q", args[0])
+				}
+
 			} else {
-				cle.ErrorHandler = nil
-				console.Printlnf("Escalate Errors")
+				console.Println("missing arg")
 			}
-		} else {
-			cle.RecoverPanickedCommands = !cle.RecoverPanickedCommands
-			console.Printlnf("Recover Panics = %v", cle.RecoverPanickedCommands)
-		}
-		return nil
-	}))
+			return nil
+		}))
 
 	cle.RegisterCommand(console.NewParameterlessCommand("error", func(args []string) error {
 		return fmt.Errorf(strings.Join(args, " "))
