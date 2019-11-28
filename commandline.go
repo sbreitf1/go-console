@@ -45,6 +45,7 @@ func readCommand(prompt string, getHistoryEntry CommandHistoryEntry, getCompleti
 
 		// line break is part of command -> append to command because it has been omitted by the line reader
 		sb.WriteRune('\n')
+		// show empty prompt for further lines of same command
 		prompt = ""
 	}
 }

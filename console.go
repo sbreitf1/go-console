@@ -15,45 +15,54 @@ const (
 )
 
 var (
-	// DefaultIO can be used to redirect input and output sources.
-	DefaultIO IO
+	// DefaultInput can be used to redirect input sources.
+	DefaultInput Input
+	// DefaultOutput can be used to redirect output destinations.
+	DefaultOutput Output
 )
 
-// IO defines functionality to handle console input and output.
-type IO interface {
-	Print(string) (int, error)
+// Input defines functionality to handle console input.
+type Input interface {
 	ReadLine() (string, error)
 	ReadPassword() (string, error)
 	ReadKey() (Key, rune, error)
+}
+
+// Output defines functionality to handle console output.
+type Output interface {
+	Print(string) (int, error)
 	GetSize() (int, int, error)
 	SupportsColors() bool
 }
 
-type defaultIO struct {
+type defaultInput struct {
 	lastCharWasCR bool
+}
+type defaultOutput struct {
 }
 
 func init() {
-	DefaultIO = &defaultIO{}
+	DefaultInput = &defaultInput{}
+	DefaultOutput = &defaultOutput{}
 }
 
-func (d *defaultIO) Print(str string) (int, error) {
+func (d *defaultOutput) Print(str string) (int, error) {
 	return fmt.Print(str)
 }
 
 // Print writes a set of objects separated by whitespaces to Stdout.
 func Print(a ...interface{}) (int, error) {
-	return DefaultIO.Print(fmt.Sprint(a...))
+	return DefaultOutput.Print(fmt.Sprint(a...))
 }
 
 // Printf writes a formatted string to Stdout.
 func Printf(format string, a ...interface{}) (int, error) {
-	return DefaultIO.Print(fmt.Sprintf(format, a...))
+	return DefaultOutput.Print(fmt.Sprintf(format, a...))
 }
 
 // Println writes a set of objects separated by whitespaces to Stdout and ends the line.
 func Println(a ...interface{}) (int, error) {
-	return DefaultIO.Print(fmt.Sprintf("%s%s", fmt.Sprint(a...), newline))
+	return DefaultOutput.Print(fmt.Sprintf("%s%s", fmt.Sprint(a...), newline))
 }
 
 // Printlnf writes a formatted string to Stdout and ends the line.
@@ -133,30 +142,30 @@ func PrintList(list []string) error {
 	return err
 }
 
-func (d *defaultIO) GetSize() (int, int, error) {
+func (d *defaultOutput) GetSize() (int, int, error) {
 	return terminal.GetSize(int(os.Stdout.Fd()))
 }
 
 // GetSize returns the current terminal dimensions in characters.
 func GetSize() (int, int, error) {
-	return DefaultIO.GetSize()
+	return DefaultOutput.GetSize()
 }
 
-func (d *defaultIO) SupportsColors() bool {
+func (d *defaultOutput) SupportsColors() bool {
 	return supportsColors()
 }
 
 // SupportsColors returns true when the current terminal supports ANSI colors.
 func SupportsColors() bool {
-	return DefaultIO.SupportsColors()
+	return DefaultOutput.SupportsColors()
 }
 
-func (d *defaultIO) ReadLine() (string, error) {
+func (d *defaultInput) ReadLine() (string, error) {
 	//TODO configurable encoding
 	return d.readLine(d.readRuneUTF8)
 }
 
-func (d *defaultIO) readLine(readRune func() (rune, error)) (string, error) {
+func (d *defaultInput) readLine(readRune func() (rune, error)) (string, error) {
 	var sb strings.Builder
 
 	for {
@@ -183,7 +192,7 @@ func (d *defaultIO) readLine(readRune func() (rune, error)) (string, error) {
 	}
 }
 
-func (*defaultIO) readRuneANSI() (rune, error) {
+func (*defaultInput) readRuneANSI() (rune, error) {
 	var buf = [1]byte{0}
 	_, err := os.Stdin.Read(buf[:])
 	if err != nil {
@@ -192,7 +201,7 @@ func (*defaultIO) readRuneANSI() (rune, error) {
 	return rune(buf[0]), nil
 }
 
-func (*defaultIO) readRuneUTF8() (rune, error) {
+func (*defaultInput) readRuneUTF8() (rune, error) {
 	// utf8 runes can take 1 up to 4 bytes
 	var buf = [4]byte{0}
 	_, err := os.Stdin.Read(buf[0:1])
@@ -226,10 +235,10 @@ func (*defaultIO) readRuneUTF8() (rune, error) {
 //
 // This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
 func ReadLine() (string, error) {
-	return DefaultIO.ReadLine()
+	return DefaultInput.ReadLine()
 }
 
-func (d *defaultIO) ReadPassword() (string, error) {
+func (d *defaultInput) ReadPassword() (string, error) {
 	var pw string
 	if err := withoutEcho(func() error {
 		line, err := d.ReadLine()
@@ -247,10 +256,10 @@ func (d *defaultIO) ReadPassword() (string, error) {
 //
 // This method should not be used in conjunction with Stdin read from other packages as it might leave an orphaned '\n' in the input buffer for '\r\n' line breaks.
 func ReadPassword() (string, error) {
-	return DefaultIO.ReadPassword()
+	return DefaultInput.ReadPassword()
 }
 
-func (d *defaultIO) ReadKey() (Key, rune, error) {
+func (d *defaultInput) ReadKey() (Key, rune, error) {
 	var key Key
 	var r rune
 	var err error
@@ -263,7 +272,7 @@ func (d *defaultIO) ReadKey() (Key, rune, error) {
 
 // ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
 func ReadKey() (Key, rune, error) {
-	return DefaultIO.ReadKey()
+	return DefaultInput.ReadKey()
 }
 
 func readKey() (Key, rune, error) {

@@ -22,7 +22,9 @@ func main() {
 	cle.ErrorHandler = errHandler
 
 	cle.RegisterCommand(console.NewCustomCommand("toggle",
-		console.NewFixedArgCompletion(console.NewOneOfArgCompletion("error", "panic")),
+		console.NewFixedArgCompletion(
+			console.NewOneOfArgCompletion("error", "panic"),
+		),
 		func(args []string) error {
 			if len(args) > 0 {
 				switch args[0] {
