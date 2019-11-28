@@ -3,6 +3,7 @@ package console
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -25,7 +26,9 @@ var (
 type Input interface {
 	ReadLine() (string, error)
 	ReadPassword() (string, error)
+	BeginReadKey() error
 	ReadKey() (Key, rune, error)
+	EndReadKey() error
 }
 
 // Output defines functionality to handle console output.
@@ -94,12 +97,14 @@ func fatal(int, error) {
 	os.Exit(1)
 }
 
-// PrintList prints a list of strings in a regular grid.
-func PrintList(list []string) error {
+// PrintList prints all array or map values in a regular grid.
+func PrintList(obj interface{}) error {
 	width, _, err := GetSize()
 	if err != nil {
 		return err
 	}
+
+	list := toList(obj)
 
 	maxItemLen := 0
 	for _, item := range list {
@@ -140,6 +145,41 @@ func PrintList(list []string) error {
 
 	_, err = Print(sb.String())
 	return err
+}
+
+func toList(obj interface{}) []string {
+	if obj == nil {
+		return nil
+	}
+
+	var list []string
+
+	t := reflect.TypeOf(obj)
+	v := reflect.ValueOf(obj)
+
+	toString := func(v reflect.Value) string {
+		return fmt.Sprintf("%v", v.Interface())
+	}
+
+	switch t.Kind() {
+	case reflect.Array:
+		fallthrough
+	case reflect.Slice:
+		list = make([]string, v.Len())
+		for i := 0; i < v.Len(); i++ {
+			list[i] = toString(v.Index(i))
+		}
+
+	case reflect.Map:
+		list = make([]string, v.Len())
+		i := 0
+		for it := v.MapRange(); it.Next(); {
+			list[i] = toString(it.Value())
+			i++
+		}
+	}
+
+	return list
 }
 
 func (d *defaultOutput) GetSize() (int, int, error) {
@@ -259,23 +299,11 @@ func ReadPassword() (string, error) {
 	return DefaultInput.ReadPassword()
 }
 
+func (d *defaultInput) BeginReadKey() error {
+	return keyboard.Open()
+}
+
 func (d *defaultInput) ReadKey() (Key, rune, error) {
-	var key Key
-	var r rune
-	var err error
-	withReadKeyContext(func() error {
-		key, r, err = readKey()
-		return nil
-	})
-	return key, r, err
-}
-
-// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
-func ReadKey() (Key, rune, error) {
-	return DefaultInput.ReadKey()
-}
-
-func readKey() (Key, rune, error) {
 	char, key, err := keyboard.GetKey()
 	if err != nil {
 		return 0, 0, err
@@ -290,11 +318,33 @@ func readKey() (Key, rune, error) {
 	return Key(key), char, nil
 }
 
-func withReadKeyContext(f func() error) error {
-	if err := keyboard.Open(); err != nil {
+func (d *defaultInput) EndReadKey() error {
+	keyboard.Close()
+	return nil
+}
+
+// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
+func ReadKey() (Key, rune, error) {
+	var key Key
+	var r rune
+	var err error
+	WithReadKeyContext(func() error {
+		key, r, err = DefaultInput.ReadKey()
+		return nil
+	})
+	return key, r, err
+}
+
+func readKey() (Key, rune, error) {
+	return DefaultInput.ReadKey()
+}
+
+// WithReadKeyContext executes a function and keeps a ReadKey state ready.
+func WithReadKeyContext(f func() error) error {
+	if err := DefaultInput.BeginReadKey(); err != nil {
 		return err
 	}
-	defer keyboard.Close()
+	defer DefaultInput.EndReadKey()
 
 	return f()
 }

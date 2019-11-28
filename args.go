@@ -7,10 +7,10 @@ import (
 	"strings"
 )
 
-// CompletionCandidatesForEntry describes a function that returns all completion candidates for a given command and entry.
+// CommandCompletionHandler describes a function that returns all completion candidates for a given command and entry.
 //
 // The returned candidates must include the current user input for the given entry and are filtered by the entered prefix.
-type CompletionCandidatesForEntry func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
+type CommandCompletionHandler func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
 
 // CompletionCandidate denotes a completion entity for a command.
 type CompletionCandidate struct {
@@ -20,6 +20,13 @@ type CompletionCandidate struct {
 	ReplaceString string
 	// IsFinal is true, when the replacement is the final value. This will also emit a whitespace after inserting the command part.
 	IsFinal bool
+}
+
+func (c CompletionCandidate) String() string {
+	if len(c.Label) > 0 {
+		return c.Label
+	}
+	return c.ReplaceString
 }
 
 // PrepareCandidates returns a list of completion candidates with isFinal flag.
@@ -39,7 +46,7 @@ type ArgCompletion interface {
 // NewFixedArgCompletion returns a completion handler for a fixed set of arguments
 //
 // The result can directly be used as completion handler for Command definitions.
-func NewFixedArgCompletion(args ...ArgCompletion) CompletionCandidatesForEntry {
+func NewFixedArgCompletion(args ...ArgCompletion) CommandCompletionHandler {
 	return func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate) {
 		if entryIndex > 0 && entryIndex <= len(args) {
 			return args[entryIndex-1].GetCompletionCandidates(currentCommand, entryIndex)
@@ -71,15 +78,15 @@ func NewLocalFileSystemArgCompletion(withFiles bool) ArgCompletion {
 }
 
 func (a *localFileSystemArgCompletion) GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate {
-	candidates, _ := BrowseCandidates("", currentCommand[entryIndex], a.withFiles)
+	candidates, _ := LocalFileSystemCompletion("", currentCommand[entryIndex], a.withFiles)
 	return candidates
 }
 
-// BrowseCandidates returns the completion candidates for browsing the given directory.
+// LocalFileSystemCompletion returns the completion candidates for browsing the given directory.
 //
 // The typical usage is to browse the current working directory using the current command entry:
 // BrowseCandidates("", currentCommand[entryIndex], ...)
-func BrowseCandidates(workingDir, currentCommandEntry string, withFiles bool) ([]CompletionCandidate, error) {
+func LocalFileSystemCompletion(workingDir, currentCommandEntry string, withFiles bool) ([]CompletionCandidate, error) {
 	if len(workingDir) == 0 {
 		var err error
 		workingDir, err = os.Getwd()

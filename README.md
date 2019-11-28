@@ -29,7 +29,7 @@ See `examples/basic-input` for an example application.
 A more advanced input method is provided by `ReadCommand`. It reads and parses a command from input, respecting all escape characters and quoted phrases:
 
 ```golang
-cmd, err := console.ReadCommand("prompt", nil, nil) // prompt> {user input here}
+cmd, err := console.ReadCommand("prompt", nil) // prompt> {user input here}
 // example user input: echo foo 'say "hello world"' "white space" escape\ sequence
 // cmd[0] = "echo"
 // cmd[1] = "foo"
@@ -109,10 +109,12 @@ See the following list for possible customizations of the `Command Line Environm
 | Field Name | Description | Default |
 | ---------- | ----------- | ------- |
 | Prompt | Callback function to specify the current command prompt. Will be called every time the prompt is displayed. Use `cle.SetStaticPrompt` to set a static prompt. | `cle> ` |
-| UnknownCommandHandler | A handler that is called when an unknown command is executed. If set to `nil`, the execution loop will end returning an unkown command error. | Print message and continue |
-| UnknownCommandCompletionHandler | Completion handler for unknown commands. | `nil` |
+| PrintCandidates | Callback function to print options on double-tab. | `DefaultCandidatePrinter()` |
+| ExecUnknownCommad | A handler that is called when an unknown command is executed. If set to `nil`, the execution loop will end returning an unkown command error. | Print message and continue |
+| CompleteUnknownCommand | Completion handler for unknown commands. | `nil` |
 | ErrorHandler | Error handler to handle errors and panics returned from commands. Will end the execution loop and pass through the error if something else than `nil` is returned. | Print error message and continue |
 | RecoverPanickedCommands | If set to `true`, panics from commands are recovered and passed to `ErrorHandler`. Use `console.IsErrCommandPanicked` to recognize panics. | `true` |
+| UseCommandNameCompletion | If set to `false`, no completion is available for command names. | `true` |
 
 ### Custom Completion Handlers
 
@@ -120,27 +122,37 @@ Completion handlers are called every time the user presses the tab key. They rec
 
 ```golang
 func completionHandler(cmd []string, index int) []console.CompletionCandidate {
-	return []console.CompletionCandidate{
-		console.CompletionCandidate{
-			Label:         "Greeting",
-			ReplaceString: "hello",
-			IsFinal:       true,
-		},
-		console.CompletionCandidate{
-			ReplaceString: "hedgehog",
-			IsFinal:       false,
-		},
-		console.CompletionCandidate{
-			ReplaceString: "world",
-			IsFinal:       false,
-		},
-	}
+    return []console.CompletionCandidate{
+        console.CompletionCandidate{
+            Label:         "Greeting",
+            ReplaceString: "hello",
+            IsFinal:       true,
+        },
+            console.CompletionCandidate{
+            ReplaceString: "hedgehog",
+            IsFinal:       false,
+        },
+            console.CompletionCandidate{
+            ReplaceString: "world",
+            IsFinal:       false,
+        },
+    }
 }
 ```
 
 The `ReplaceString` property is the actual value to be used for completion. If the user has already typed `h` and presses tab, the prefix will match `hello` and `hedgehog`, so the longest common prefix `he` is taken as completion. The user now types `l` to further specify the desired value and again presses tab. Only one candidate now matches the prefix and so the full replacement string `hello` is taken as completion. Furthermore, a whitespace character is emitted to begin the next argument because the `IsFinal` property is set to `true`.
 
 The `Label` property can be set to an arbitrary value and does not affect the actual completion in any way. If set to a non-empty value, it is displayed instead of the `ReplaceString` property in the options list on double-tab. This can be useful when completion is used on hierachical structures like file systems where you only want to display the file names and not the full path.
+
+### Custom Completion Arg
+
+You can also extend the `NewFixedArgCompletion` with custom types that implement `ArgCompletion`:
+
+```golang
+type ArgCompletion interface {
+    GetCompletionCandidates(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
+}
+```
 
 ## Applications
 

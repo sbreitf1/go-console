@@ -11,7 +11,7 @@ func main() {
 
 	cle.RegisterCommand(console.NewExitCommand("exit"))
 
-	cle.UnknownCommandHandler = func(cmd string, args []string) error {
+	cle.ExecUnknownCommand = func(cmd string, args []string) error {
 		console.Printlnf("Unknown command %q", cmd)
 		for _, arg := range args {
 			console.Printlnf("-> %q", arg)
