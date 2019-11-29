@@ -26,34 +26,34 @@ type CommandHistoryHandler func(index int) []string
 type ReadCommandOptions struct {
 	// GetHistoryEntry denotes the handler for reading command history.
 	GetHistoryEntry CommandHistoryHandler
-	// GetCompletionCandidates denotes the handler for auto completion.
-	GetCompletionCandidates CommandCompletionHandler
-	// PrintCandidatesHandler denotes the handler to print options on double-tab.
-	PrintCandidatesHandler PrintCandidatesHandler
+	// GetCompletionOptions denotes the handler for auto completion.
+	GetCompletionOptions CommandCompletionHandler
+	// PrintOptionsHandler denotes the handler to print options on double-tab.
+	PrintOptionsHandler PrintOptionsHandler
 }
 
 // ReadCommand reads a command from console input and offers history, aswell as completion functionality.
-func ReadCommand(prompt string, options *ReadCommandOptions) ([]string, error) {
-	if options == nil {
-		options = &ReadCommandOptions{
-			PrintCandidatesHandler: DefaultCandidatePrinter(),
+func ReadCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
+	if opts == nil {
+		opts = &ReadCommandOptions{
+			PrintOptionsHandler: DefaultOptionsPrinter(),
 		}
 	}
 
 	var cmd []string
 	err := WithReadKeyContext(func() error {
 		var err error
-		cmd, err = readCommand(prompt, options)
+		cmd, err = readCommand(prompt, opts)
 		return err
 	})
 	return cmd, err
 }
 
-func readCommand(prompt string, options *ReadCommandOptions) ([]string, error) {
+func readCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	var sb strings.Builder
 
 	for {
-		line, err := readCommandLine(prompt, sb.String(), options)
+		line, err := readCommandLine(prompt, sb.String(), opts)
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ func readCommand(prompt string, options *ReadCommandOptions) ([]string, error) {
 	}
 }
 
-func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions) (string, error) {
+func readCommandLine(prompt, currentCommand string, opts *ReadCommandOptions) (string, error) {
 	Printf("%s> ", prompt)
 
 	var sb strings.Builder
@@ -138,20 +138,20 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 			clearLine()
 
 		case KeyUp:
-			if options.GetHistoryEntry != nil {
-				newCmd := options.GetHistoryEntry(historyIndex + 1)
+			if opts.GetHistoryEntry != nil {
+				newCmd := opts.GetHistoryEntry(historyIndex + 1)
 				if newCmd != nil {
 					historyIndex++
 					replaceLine(GetCommandString(newCmd))
 				}
 			}
 		case KeyDown:
-			if options.GetHistoryEntry != nil {
+			if opts.GetHistoryEntry != nil {
 				if historyIndex >= 0 {
 					historyIndex--
 
 					if historyIndex >= 0 {
-						newCmd := options.GetHistoryEntry(historyIndex)
+						newCmd := opts.GetHistoryEntry(historyIndex)
 						if newCmd != nil {
 							replaceLine(GetCommandString(newCmd))
 						} else {
@@ -166,7 +166,7 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 			}
 
 		case KeyTab:
-			if options.GetCompletionCandidates != nil {
+			if opts.GetCompletionOptions != nil {
 				str := sb.String()
 				cmd, _ := ParseCommand(fmt.Sprintf("%s%s", currentCommand, str))
 
@@ -182,29 +182,29 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 				}
 
 				prefix := cmd[len(cmd)-1]
-				candidates := filterCandidates(options.GetCompletionCandidates(cmd, len(cmd)-1), prefix)
-				if candidates != nil && len(candidates) > 0 {
+				options := filterOptions(opts.GetCompletionOptions(cmd, len(cmd)-1), prefix)
+				if options != nil && len(options) > 0 {
 					if time.Since(lastTabPress) < doubleTabSpan {
-						if options.PrintCandidatesHandler != nil {
-							// double-tab detected -> print candidates
+						if opts.PrintOptionsHandler != nil {
+							// double-tab detected -> print options
 							Println()
 
-							sort.Slice(candidates, func(i, j int) bool {
-								return candidates[i].String() < candidates[j].String()
+							sort.Slice(options, func(i, j int) bool {
+								return options[i].String() < options[j].String()
 							})
-							options.PrintCandidatesHandler(candidates)
+							opts.PrintOptionsHandler(options)
 							reprintLine()
 						}
 						// process next tab as single-press
 						lastTabPress = time.Unix(0, 0)
 
 					} else {
-						if len(candidates) == 1 {
-							if len(candidates[0].ReplaceString) > 0 {
-								suffix := Escape(candidates[0].ReplaceString[len(prefix):])
+						if len(options) == 1 {
+							if len(options[0].Replacement()) > 0 {
+								suffix := Escape(options[0].Replacement()[len(prefix):])
 								putString(suffix)
 
-								if !candidates[0].IsPartial {
+								if !options[0].IsPartial() {
 									putRune(' ')
 								}
 							} else {
@@ -213,7 +213,7 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 							}
 
 						} else {
-							longestCommonPrefix := findLongestCommonPrefix(candidates)
+							longestCommonPrefix := findLongestCommonPrefix(options)
 							suffix := Escape(longestCommonPrefix[len(prefix):])
 							if len(suffix) > 0 {
 								putString(suffix)
@@ -248,36 +248,36 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 	}
 }
 
-func filterCandidates(candidates []CompletionCandidate, prefix string) []CompletionCandidate {
-	if candidates == nil {
+func filterOptions(options []CompletionOption, prefix string) []CompletionOption {
+	if options == nil {
 		return nil
 	}
 
-	filtered := make([]CompletionCandidate, 0)
-	for _, c := range candidates {
-		if strings.HasPrefix(c.ReplaceString, prefix) {
+	filtered := make([]CompletionOption, 0)
+	for _, c := range options {
+		if strings.HasPrefix(c.Replacement(), prefix) {
 			filtered = append(filtered, c)
 		}
 	}
 	return filtered
 }
 
-func findLongestCommonPrefix(candidates []CompletionCandidate) string {
-	if len(candidates) == 0 {
+func findLongestCommonPrefix(options []CompletionOption) string {
+	if len(options) == 0 {
 		return ""
 	}
 
 	longestCommonPrefix := ""
 	for i := 1; ; i++ {
-		if len(candidates[0].ReplaceString) < i {
+		if len(options[0].Replacement()) < i {
 			// prefix cannot be any longer
 			return longestCommonPrefix
 		}
 
-		prefix := candidates[0].ReplaceString[:i]
-		for _, c := range candidates {
-			if !strings.HasPrefix(c.ReplaceString, prefix) {
-				// the next prefix would not be valid for all candidates
+		prefix := options[0].Replacement()[:i]
+		for _, c := range options {
+			if !strings.HasPrefix(c.Replacement(), prefix) {
+				// the next prefix would not be valid for all options
 				return longestCommonPrefix
 			}
 		}
@@ -426,8 +426,8 @@ func (h *memoryCommandHistory) GetHistoryEntry(index int) []string {
 type CommandLineEnvironment struct {
 	// Prompt is called when displaying a command line prompt.
 	Prompt PromptHandler
-	// PrintCandidates is called for double-tab option printing.
-	PrintCandidates PrintCandidatesHandler
+	// PrintOptions is called for double-tab option printing.
+	PrintOptions PrintOptionsHandler
 	// UnknownCommandHandler is called to handle unknown commands. Can be nil to return an unknown command error instead.
 	ExecUnknownCommand ExecUnknownCommandHandler
 	// UnknownCommandCompletionHandler is used for completion of unknown commands.
@@ -457,8 +457,8 @@ type CommandErrorHandler func(cmd string, args []string, err error) error
 // NewCommandLineEnvironment returns a new command line environment.
 func NewCommandLineEnvironment() *CommandLineEnvironment {
 	return &CommandLineEnvironment{
-		Prompt:          func() string { return "cle" },
-		PrintCandidates: DefaultCandidatePrinter(),
+		Prompt:       func() string { return "cle" },
+		PrintOptions: DefaultOptionsPrinter(),
 		ExecUnknownCommand: func(cmd string, _ []string) error {
 			_, err := Printlnf("Unknown command %q", cmd)
 			return err
@@ -510,13 +510,13 @@ func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
 	return b.readCommand(ReadCommand)
 }
 
-func (b *CommandLineEnvironment) readCommand(handler func(prompt string, options *ReadCommandOptions) ([]string, error)) ([]string, error) {
-	options := &ReadCommandOptions{
-		GetHistoryEntry:         b.history.GetHistoryEntry,
-		GetCompletionCandidates: b.GetCompletionCandidates,
-		PrintCandidatesHandler:  b.PrintCandidates,
+func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *ReadCommandOptions) ([]string, error)) ([]string, error) {
+	opts := &ReadCommandOptions{
+		GetHistoryEntry:      b.history.GetHistoryEntry,
+		GetCompletionOptions: b.GetCompletionOptions,
+		PrintOptionsHandler:  b.PrintOptions,
 	}
-	cmd, err := handler(b.prompt(), options)
+	cmd, err := handler(b.prompt(), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -549,16 +549,16 @@ func (b *CommandLineEnvironment) Run() error {
 	})
 }
 
-// GetCompletionCandidates returns completion candidates for the given command. This method can be used as callback for ReadCommand.
-func (b *CommandLineEnvironment) GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate {
+// GetCompletionOptions returns completion options for the given command. This method can be used as callback for ReadCommand.
+func (b *CommandLineEnvironment) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
 	if entryIndex == 0 {
 		if b.UseCommandNameCompletion {
 			// completion for command
-			candidates := make([]CompletionCandidate, 0)
+			options := make([]CompletionOption, 0)
 			for name := range b.commands {
-				candidates = append(candidates, CompletionCandidate{ReplaceString: name})
+				options = append(options, &completionOption{replacement: name})
 			}
-			return candidates
+			return options
 		}
 		return nil
 	}
@@ -571,7 +571,7 @@ func (b *CommandLineEnvironment) GetCompletionCandidates(currentCommand []string
 		return nil
 	}
 
-	return cmd.GetCompletionCandidates(currentCommand, entryIndex)
+	return cmd.GetCompletionOptions(currentCommand, entryIndex)
 }
 
 // ExecCommand executes a command as if it has been entered in terminal.
@@ -602,16 +602,16 @@ func (b *CommandLineEnvironment) ExecCommand(cmd string, args []string) error {
 	return err
 }
 
-// PrintCandidatesHandler specifies a method to print options on double-tab.
-type PrintCandidatesHandler func([]CompletionCandidate)
+// PrintOptionsHandler specifies a method to print options on double-tab.
+type PrintOptionsHandler func([]CompletionOption)
 
-// DefaultCandidatePrinter returns a function that is used to print options on double-tab.
+// DefaultOptionsPrinter returns a function that is used to print options on double-tab.
 //
 // This method will ask the user for large lists to confirm printin.
-func DefaultCandidatePrinter() PrintCandidatesHandler {
-	return func(candidates []CompletionCandidate) {
-		if len(candidates) > maxAutoPrintListLen {
-			Printlnf("  print all %d options? (y/N)", len(candidates))
+func DefaultOptionsPrinter() PrintOptionsHandler {
+	return func(options []CompletionOption) {
+		if len(options) > maxAutoPrintListLen {
+			Printlnf("  print all %d options? (y/N)", len(options))
 			// assume is only called during command reading here (keyboard needs to be prepared)
 			_, r, err := readKey()
 			if err != nil {
@@ -623,7 +623,7 @@ func DefaultCandidatePrinter() PrintCandidatesHandler {
 			}
 		}
 
-		PrintList(candidates)
+		PrintList(options)
 	}
 }
 
@@ -631,8 +631,8 @@ func DefaultCandidatePrinter() PrintCandidatesHandler {
 type Command interface {
 	// Name returns the name of the command as used in the command line.
 	Name() string
-	// GetCompletionCandidates denotes a custom completion handler as used for ReadCommand.
-	GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate
+	// GetCompletionOptions denotes a custom completion handler as used for ReadCommand.
+	GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption
 	// Exec is called to execute the command with a set of arguments.
 	Exec(args []string) error
 }
@@ -649,7 +649,7 @@ type customCommand struct {
 func (c *customCommand) Name() string {
 	return c.name
 }
-func (c *customCommand) GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate {
+func (c *customCommand) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
 	if c.completionHandler != nil {
 		return c.completionHandler(currentCommand, entryIndex)
 	}
@@ -664,12 +664,12 @@ func (c *customCommand) Exec(args []string) error {
 
 // NewExitCommand returns a named command to stop command line processing.
 func NewExitCommand(name string) Command {
-	return &customCommand{name, func([]string, int) []CompletionCandidate { return nil }, func([]string) error { return ErrExit() }}
+	return &customCommand{name, func([]string, int) []CompletionOption { return nil }, func([]string) error { return ErrExit() }}
 }
 
 // NewParameterlessCommand returns a named command that takes no parameters.
 func NewParameterlessCommand(name string, handler ExecCommandHandler) Command {
-	return &customCommand{name, func([]string, int) []CompletionCandidate { return nil }, handler}
+	return &customCommand{name, func([]string, int) []CompletionOption { return nil }, handler}
 }
 
 // NewCustomCommand returns a named command with completion and execution handler.

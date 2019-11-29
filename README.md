@@ -109,7 +109,7 @@ See the following list for possible customizations of the `Command Line Environm
 | Field Name | Description | Default |
 | ---------- | ----------- | ------- |
 | Prompt | Callback function to specify the current command prompt. Will be called every time the prompt is displayed. Use `cle.SetStaticPrompt` to set a static prompt. | `cle> ` |
-| PrintCandidates | Callback function to print options on double-tab. | `DefaultCandidatePrinter()` |
+| PrintOptions | Callback function to print options on double-tab. | `DefaultOptionsPrinter()` |
 | ExecUnknownCommad | A handler that is called when an unknown command is executed. If set to `nil`, the execution loop will end returning an unkown command error. | Print message and continue |
 | CompleteUnknownCommand | Completion handler for unknown commands. | `nil` |
 | ErrorHandler | Error handler to handle errors and panics returned from commands. Will end the execution loop and pass through the error if something else than `nil` is returned. | Print error message and continue |
@@ -121,28 +121,20 @@ See the following list for possible customizations of the `Command Line Environm
 Completion handlers are called every time the user presses the tab key. They receive the full, parsed command as input, aswell as the index of the currently edited entry. When using completion handlers for registered commands of a command line environment, you can ignore the first entry as it will always contain the name of the corresponding command. The handler can return the full list of available options because prefix filtering for the current user input will be done automatically:
 
 ```golang
-func completionHandler(cmd []string, index int) []console.CompletionCandidate {
-    return []console.CompletionCandidate{
-        console.CompletionCandidate{
-            // non-empty Label property instead of ReplaceString will be displayed in listings
-            Label:         "Greeting",
-            ReplaceString: "hello",
-            IsPartial:     false,
-        },
-        console.CompletionCandidate{
-            // in most cases only the ReplaceString property is required
-            ReplaceString: "hedgehog",
-        },
-        console.CompletionCandidate{
-            ReplaceString: "world",
-        },
+func completionHandler(cmd []string, index int) []console.CompletionOption {
+    return []console.CompletionOption{
+        // labelled options will be displayed with custom label in listings
+        console.NewLabelledCompletionOption("Greeting", "hello", false),
+        // in most cases only the ReplaceString property is required
+        console.NewCompletionOption("hedgehog", false),
+        console.NewCompletionOption("world", false),
     }
 }
 ```
 
-The `ReplaceString` property is the actual value to be used for completion. If the user has already typed `h` and presses tab, the prefix will match `hello` and `hedgehog`, so the longest common prefix `he` is taken as completion. The user now types `l` to further specify the desired value and again presses tab. Only one candidate now matches the prefix and so the full replacement string `hello` is taken as completion. Furthermore, a whitespace character is emitted to begin the next argument because the `IsPartial` property is set to `false`.
+The `replacement` parameter of `NewLabelledCompletionOption` and `NewCompletionOption` is the actual value to be used for completion. If the user has already typed `h` and presses tab, the prefix will match `hello` and `hedgehog`, so the longest common prefix `he` is taken as completion. The user now types `l` to further specify the desired value and again presses tab. Only one candidate now matches the prefix and so the full replacement string `hello` is taken as completion. Furthermore, a whitespace character is emitted to begin the next argument because the `isPartial` parameter is set to `false`.
 
-The `Label` property can be set to an arbitrary value and does not affect the actual completion in any way. If set to a non-empty value, it is displayed instead of the `ReplaceString` property in the options list on double-tab. This can be useful when completion is used on hierachical structures like file systems where you only want to display the file names and not the full path.
+The first `label` parameter of `NewLabelledCompletionOption` can be set to an arbitrary value and does not affect the actual completion in any way. It is displayed instead of the actual replacement property in the options list on double-tab. This can be useful when completion is used on hierachical structures like file systems where you only want to display the file names and not the full path.
 
 ### Custom Completion Arg
 
@@ -150,7 +142,7 @@ You can also extend the `NewFixedArgCompletion` with custom types that implement
 
 ```golang
 type ArgCompletion interface {
-    GetCompletionCandidates(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
+    GetCompletionOptions(currentCommand []string, entryIndex int) (options []CompletionOption)
 }
 ```
 

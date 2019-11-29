@@ -8,8 +8,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const newline = "\n"
-
 const ioctlReadTermios = unix.TCGETS
 const ioctlWriteTermios = unix.TCSETS
 

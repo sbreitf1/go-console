@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/sbreitf1/go-console"
 )
 
@@ -18,5 +20,5 @@ func main() {
 	}
 
 	console.Println("#######################")
-	console.Println(user, "->", pass)
+	fmt.Println(user, "->", pass)
 }

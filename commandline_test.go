@@ -116,9 +116,9 @@ func TestCommandLineEnvironmentSingleOptionCompletion(t *testing.T) {
 
 		cle, _, sb := prepareTestCLE()
 		cle.RegisterCommand(NewCustomCommand("print",
-			func(cmd []string, index int) []CompletionCandidate {
-				return []CompletionCandidate{
-					CompletionCandidate{ReplaceString: "test"},
+			func(cmd []string, index int) []CompletionOption {
+				return []CompletionOption{
+					NewCompletionOption("test", false),
 				}
 			},
 			newPrintHandler(sb)))
@@ -135,11 +135,11 @@ func TestCommandLineEnvironmentLongestPrefixCompletion(t *testing.T) {
 
 		cle, _, sb := prepareTestCLE()
 		cle.RegisterCommand(NewCustomCommand("print",
-			func(cmd []string, index int) []CompletionCandidate {
-				return []CompletionCandidate{
-					CompletionCandidate{ReplaceString: "foobar1"},
-					CompletionCandidate{ReplaceString: "foobar2"},
-					CompletionCandidate{ReplaceString: "foobar21"},
+			func(cmd []string, index int) []CompletionOption {
+				return []CompletionOption{
+					NewCompletionOption("foobar1", false),
+					NewCompletionOption("foobar2", false),
+					NewCompletionOption("foobar21", false),
 				}
 			},
 			newPrintHandler(sb)))
@@ -157,12 +157,12 @@ func prepareTestCLE() (*CommandLineEnvironment, *int, *strings.Builder) {
 	cle := NewCommandLineEnvironment()
 	cle.RegisterCommand(NewExitCommand("exit"))
 	cle.RegisterCommand(NewCustomCommand("print",
-		func(cmd []string, index int) []CompletionCandidate {
+		func(cmd []string, index int) []CompletionOption {
 			lastCompletionIndex = index
-			return []CompletionCandidate{
-				CompletionCandidate{Label: "FOO", ReplaceString: "foo"},
-				CompletionCandidate{Label: "FOO", ReplaceString: "bar"},
-				CompletionCandidate{Label: "PART", ReplaceString: "part", IsPartial: true},
+			return []CompletionOption{
+				NewLabelledCompletionOption("FOO", "foo", false),
+				NewLabelledCompletionOption("FOO", "bar", false),
+				NewLabelledCompletionOption("PART", "part", true),
 			}
 		},
 		newPrintHandler(&sb)))

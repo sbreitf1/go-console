@@ -7,14 +7,14 @@ import (
 func main() {
 	history := console.NewCommandHistory(3)
 
-	options := &console.ReadCommandOptions{
-		GetHistoryEntry:        history.GetHistoryEntry,
-		PrintCandidatesHandler: console.DefaultCandidatePrinter(),
+	opts := &console.ReadCommandOptions{
+		GetHistoryEntry:     history.GetHistoryEntry,
+		PrintOptionsHandler: console.DefaultOptionsPrinter(),
 	}
 
 	console.Println("type exit to leave")
 	for {
-		cmd, err := console.ReadCommand("command", options)
+		cmd, err := console.ReadCommand("command", opts)
 		if err != nil {
 			if console.IsErrCtrlC(err) {
 				console.Println()

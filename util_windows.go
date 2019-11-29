@@ -8,8 +8,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const newline = "\r\n"
-
 func withoutEcho(f func() error) error {
 	fd := os.Stdin.Fd()
 

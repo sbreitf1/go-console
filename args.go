@@ -1,75 +1,97 @@
 package console
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-// CommandCompletionHandler describes a function that returns all completion candidates for a given command and entry.
+// CommandCompletionHandler describes a function that returns all completion options for a given command and entry.
 //
-// The returned candidates must include the current user input for the given entry and are filtered by the entered prefix.
-type CommandCompletionHandler func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
+// The returned options must include the current user input for the given entry and are filtered by the entered prefix.
+type CommandCompletionHandler func(currentCommand []string, entryIndex int) (options []CompletionOption)
 
-//TODO refactor to abstract CompletionOption interface
-
-// CompletionCandidate denotes a completion entity for a command.
-type CompletionCandidate struct {
-	// Label denotes the label that is visible for completion lists. ReplaceString is shown if Label is empty.
-	Label string
-	// ReplaceString denotes the full replacement string of the completed command part.
-	ReplaceString string
+// CompletionOption deontes a completion option for a command.
+type CompletionOption interface {
+	fmt.Stringer
+	// Value denotes the full replacement string of the completed command part.
+	Replacement() string
 	// IsPartial is true, when the replacement is not the final value. This will prevent emitting a whitespace after inserting the command part so the input stays in the current command.
-	IsPartial bool
+	IsPartial() bool
 }
 
-func (c CompletionCandidate) String() string {
-	if len(c.Label) > 0 {
-		return c.Label
+type completionOption struct {
+	label       string
+	replacement string
+	isPartial   bool
+}
+
+// NewCompletionOption returns a new completion option.
+func NewCompletionOption(replacement string, isPartial bool) CompletionOption {
+	return &completionOption{replacement: replacement, isPartial: isPartial}
+}
+
+// NewLabelledCompletionOption returns a new completion option with label.
+func NewLabelledCompletionOption(label, replacement string, isPartial bool) CompletionOption {
+	return &completionOption{label: label, replacement: replacement, isPartial: isPartial}
+}
+
+func (c *completionOption) String() string {
+	if len(c.label) > 0 {
+		return c.label
 	}
-	return c.ReplaceString
+	return c.replacement
 }
 
-//TODO util func to easily map any slice/array/map to candidates with IsPartial flag
+func (c *completionOption) Replacement() string {
+	return c.replacement
+}
 
-// PrepareCandidates returns a list of completion candidates with isPartial flag.
-func PrepareCandidates(list []string, isPartial bool) []CompletionCandidate {
-	candidates := make([]CompletionCandidate, len(list))
+func (c *completionOption) IsPartial() bool {
+	return c.isPartial
+}
+
+//TODO util func to easily map any slice/array/map to options with IsPartial flag
+
+// PrepareCompletionOptions returns a list of completion options with given isPartial flag.
+func PrepareCompletionOptions(list []string, isPartial bool) []CompletionOption {
+	options := make([]CompletionOption, len(list))
 	for i := range list {
-		candidates[i] = CompletionCandidate{ReplaceString: list[i], IsPartial: isPartial}
+		options[i] = &completionOption{replacement: list[i], isPartial: isPartial}
 	}
-	return candidates
+	return options
 }
 
 // ArgCompletion denotes an abstract definition for an argument in a completion chain.
 type ArgCompletion interface {
-	GetCompletionCandidates(currentCommand []string, entryIndex int) (candidates []CompletionCandidate)
+	GetCompletionOptions(currentCommand []string, entryIndex int) (options []CompletionOption)
 }
 
 // NewFixedArgCompletion returns a completion handler for a fixed set of arguments
 //
 // The result can directly be used as completion handler for Command definitions.
 func NewFixedArgCompletion(args ...ArgCompletion) CommandCompletionHandler {
-	return func(currentCommand []string, entryIndex int) (candidates []CompletionCandidate) {
+	return func(currentCommand []string, entryIndex int) (options []CompletionOption) {
 		if entryIndex > 0 && entryIndex <= len(args) {
-			return args[entryIndex-1].GetCompletionCandidates(currentCommand, entryIndex)
+			return args[entryIndex-1].GetCompletionOptions(currentCommand, entryIndex)
 		}
 		return nil
 	}
 }
 
 type oneOfArgCompletion struct {
-	candidates []CompletionCandidate
+	options []CompletionOption
 }
 
 // NewOneOfArgCompletion returns a completion handler for a static list of options.
 func NewOneOfArgCompletion(options ...string) ArgCompletion {
-	return &oneOfArgCompletion{candidates: PrepareCandidates(options, false)}
+	return &oneOfArgCompletion{options: PrepareCompletionOptions(options, false)}
 }
 
-func (a *oneOfArgCompletion) GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate {
-	return a.candidates
+func (a *oneOfArgCompletion) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
+	return a.options
 }
 
 type localFileSystemArgCompletion struct {
@@ -81,16 +103,16 @@ func NewLocalFileSystemArgCompletion(withFiles bool) ArgCompletion {
 	return &localFileSystemArgCompletion{withFiles}
 }
 
-func (a *localFileSystemArgCompletion) GetCompletionCandidates(currentCommand []string, entryIndex int) []CompletionCandidate {
-	candidates, _ := LocalFileSystemCompletion("", currentCommand[entryIndex], a.withFiles)
-	return candidates
+func (a *localFileSystemArgCompletion) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
+	options, _ := LocalFileSystemCompletion("", currentCommand[entryIndex], a.withFiles)
+	return options
 }
 
-// LocalFileSystemCompletion returns the completion candidates for browsing the given directory.
+// LocalFileSystemCompletion returns the completion options for browsing the given directory.
 //
 // The typical usage is to browse the current working directory using the current command entry:
-// BrowseCandidates("", currentCommand[entryIndex], ...)
-func LocalFileSystemCompletion(workingDir, currentCommandEntry string, withFiles bool) ([]CompletionCandidate, error) {
+// LocalFileSystemCompletion("", currentCommand[entryIndex], ...)
+func LocalFileSystemCompletion(workingDir, currentCommandEntry string, withFiles bool) ([]CompletionOption, error) {
 	if len(workingDir) == 0 {
 		var err error
 		workingDir, err = os.Getwd()
@@ -139,7 +161,7 @@ func LocalFileSystemCompletion(workingDir, currentCommandEntry string, withFiles
 		return nil, err
 	}
 
-	candidates := make([]CompletionCandidate, 0)
+	options := make([]CompletionOption, 0)
 	for _, f := range files {
 		if withFiles || f.IsDir() {
 			var suffix string
@@ -156,8 +178,8 @@ func LocalFileSystemCompletion(workingDir, currentCommandEntry string, withFiles
 				suffix += string(filepath.Separator)
 				label += string(filepath.Separator)
 			}
-			candidates = append(candidates, CompletionCandidate{Label: label, ReplaceString: suffix, IsPartial: f.IsDir()})
+			options = append(options, &completionOption{label: label, replacement: suffix, isPartial: f.IsDir()})
 		}
 	}
-	return candidates, nil
+	return options, nil
 }

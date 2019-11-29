@@ -20,6 +20,8 @@ var (
 	DefaultInput Input
 	// DefaultOutput can be used to redirect output destinations.
 	DefaultOutput Output
+
+	newline string
 )
 
 // Input defines functionality to handle console input.
@@ -47,6 +49,7 @@ type defaultOutput struct {
 func init() {
 	DefaultInput = &defaultInput{}
 	DefaultOutput = &defaultOutput{}
+	newline = fmt.Sprintln()
 }
 
 func (d *defaultOutput) Print(str string) (int, error) {
@@ -65,7 +68,7 @@ func Printf(format string, a ...interface{}) (int, error) {
 
 // Println writes a set of objects separated by whitespaces to Stdout and ends the line.
 func Println(a ...interface{}) (int, error) {
-	return DefaultOutput.Print(fmt.Sprintf("%s%s", fmt.Sprint(a...), newline))
+	return DefaultOutput.Print(fmt.Sprintln(a...))
 }
 
 // Printlnf writes a formatted string to Stdout and ends the line.

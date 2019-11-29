@@ -20,12 +20,12 @@ func main() {
 	}
 
 	cle.RegisterCommand(console.NewCustomCommand("duck",
-		func(cmd []string, index int) []console.CompletionCandidate {
-			candidates := make([]console.CompletionCandidate, 0)
+		func(cmd []string, index int) []console.CompletionOption {
+			options := make([]console.CompletionOption, 0)
 			for name := range ducks {
-				candidates = append(candidates, console.CompletionCandidate{ReplaceString: name})
+				options = append(options, console.NewCompletionOption(name, false))
 			}
-			return candidates
+			return options
 		},
 		func(args []string) error {
 			if len(args) > 0 {
