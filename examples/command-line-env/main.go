@@ -23,7 +23,7 @@ func main() {
 		func(cmd []string, index int) []console.CompletionCandidate {
 			candidates := make([]console.CompletionCandidate, 0)
 			for name := range ducks {
-				candidates = append(candidates, console.CompletionCandidate{ReplaceString: name, IsFinal: true})
+				candidates = append(candidates, console.CompletionCandidate{ReplaceString: name})
 			}
 			return candidates
 		},

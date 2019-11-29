@@ -204,7 +204,7 @@ func readCommandLine(prompt, currentCommand string, options *ReadCommandOptions)
 								suffix := Escape(candidates[0].ReplaceString[len(prefix):])
 								putString(suffix)
 
-								if candidates[0].IsFinal {
+								if !candidates[0].IsPartial {
 									putRune(' ')
 								}
 							} else {
@@ -492,9 +492,17 @@ func (b *CommandLineEnvironment) prompt() string {
 }
 
 // RegisterCommand adds a new command to the command line environment.
-func (b *CommandLineEnvironment) RegisterCommand(cmd Command) error {
+func (b *CommandLineEnvironment) RegisterCommand(cmd Command) {
 	b.commands[cmd.Name()] = cmd
-	return nil
+}
+
+// UnregisterCommand removes a command from the command line environment and returns true if it was existent before.
+func (b *CommandLineEnvironment) UnregisterCommand(commandName string) bool {
+	_, exists := b.commands[commandName]
+	if exists {
+		delete(b.commands, commandName)
+	}
+	return exists
 }
 
 // ReadCommand reads a command for the configured environment.
@@ -548,7 +556,7 @@ func (b *CommandLineEnvironment) GetCompletionCandidates(currentCommand []string
 			// completion for command
 			candidates := make([]CompletionCandidate, 0)
 			for name := range b.commands {
-				candidates = append(candidates, CompletionCandidate{ReplaceString: name, IsFinal: true})
+				candidates = append(candidates, CompletionCandidate{ReplaceString: name})
 			}
 			return candidates
 		}

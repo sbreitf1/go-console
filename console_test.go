@@ -2,7 +2,6 @@ package console
 
 import (
 	"testing"
-	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -33,12 +32,6 @@ func TestMapToList(t *testing.T) {
 	assert.Contains(t, list, "2")
 }
 
-type readKeyResult struct {
-	Key   Key
-	Rune  rune
-	Error error
-}
-
 func TestReadKey(t *testing.T) {
 	str := "aü ?\n"
 	expected := []readKeyResult{
@@ -50,7 +43,7 @@ func TestReadKey(t *testing.T) {
 	}
 
 	withMocks(func(input *mockInput) {
-		input.PutBuffer(str)
+		input.PutString(str)
 		for _, e := range expected {
 			k, r, err := ReadKey()
 			if !assert.Equal(t, e.Key, k, "Expected Key %s", e.Key) {
@@ -82,18 +75,43 @@ func withMocks(f func(input *mockInput)) {
 	f(input)
 }
 
+type readKeyResult struct {
+	Key   Key
+	Rune  rune
+	Error error
+}
+
 type mockInput struct {
-	buffer    []byte
+	buffer    []readKeyResult
 	bufferPos int
 }
 
 func newMockInput() *mockInput {
-	return &mockInput{}
+	return &mockInput{make([]readKeyResult, 0), 0}
 }
 
-func (m *mockInput) PutBuffer(buffer string) {
-	m.buffer = []byte(buffer)
-	m.bufferPos = 0
+func (m *mockInput) PutString(buffer string) {
+	for _, r := range buffer {
+		switch r {
+		case '\r':
+			m.buffer = append(m.buffer, readKeyResult{KeyBackspace, 0, nil})
+		case '\n':
+			m.buffer = append(m.buffer, readKeyResult{KeyEnter, 0, nil})
+		case ' ':
+			m.buffer = append(m.buffer, readKeyResult{KeySpace, 0, nil})
+		case '\t':
+			m.buffer = append(m.buffer, readKeyResult{KeyTab, 0, nil})
+
+		default:
+			m.buffer = append(m.buffer, readKeyResult{0, r, nil})
+		}
+	}
+}
+
+func (m *mockInput) PutKeys(keys ...Key) {
+	for _, k := range keys {
+		m.buffer = append(m.buffer, readKeyResult{k, 0, nil})
+	}
 }
 
 func (m *mockInput) BufferConsumed() bool {
@@ -121,22 +139,9 @@ func (m *mockInput) ReadKey() (Key, rune, error) {
 		panic("too many ReadKey calls detected")
 	}
 
-	r, size := utf8.DecodeRune(m.buffer[m.bufferPos:])
-	m.bufferPos += size
-
-	switch r {
-	case '\r':
-		return KeyBackspace, 0, nil
-	case '\n':
-		return KeyEnter, 0, nil
-	case ' ':
-		return KeySpace, 0, nil
-	case '\t':
-		return KeyTab, 0, nil
-
-	default:
-		return 0, r, nil
-	}
+	result := m.buffer[m.bufferPos]
+	m.bufferPos++
+	return result.Key, result.Rune, result.Error
 }
 
 func (m *mockInput) EndReadKey() error {

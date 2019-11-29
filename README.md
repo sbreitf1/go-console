@@ -124,23 +124,23 @@ Completion handlers are called every time the user presses the tab key. They rec
 func completionHandler(cmd []string, index int) []console.CompletionCandidate {
     return []console.CompletionCandidate{
         console.CompletionCandidate{
+            // non-empty Label property instead of ReplaceString will be displayed in listings
             Label:         "Greeting",
             ReplaceString: "hello",
-            IsFinal:       true,
+            IsPartial:     false,
         },
-            console.CompletionCandidate{
+        console.CompletionCandidate{
+            // in most cases only the ReplaceString property is required
             ReplaceString: "hedgehog",
-            IsFinal:       false,
         },
-            console.CompletionCandidate{
+        console.CompletionCandidate{
             ReplaceString: "world",
-            IsFinal:       false,
         },
     }
 }
 ```
 
-The `ReplaceString` property is the actual value to be used for completion. If the user has already typed `h` and presses tab, the prefix will match `hello` and `hedgehog`, so the longest common prefix `he` is taken as completion. The user now types `l` to further specify the desired value and again presses tab. Only one candidate now matches the prefix and so the full replacement string `hello` is taken as completion. Furthermore, a whitespace character is emitted to begin the next argument because the `IsFinal` property is set to `true`.
+The `ReplaceString` property is the actual value to be used for completion. If the user has already typed `h` and presses tab, the prefix will match `hello` and `hedgehog`, so the longest common prefix `he` is taken as completion. The user now types `l` to further specify the desired value and again presses tab. Only one candidate now matches the prefix and so the full replacement string `hello` is taken as completion. Furthermore, a whitespace character is emitted to begin the next argument because the `IsPartial` property is set to `false`.
 
 The `Label` property can be set to an arbitrary value and does not affect the actual completion in any way. If set to a non-empty value, it is displayed instead of the `ReplaceString` property in the options list on double-tab. This can be useful when completion is used on hierachical structures like file systems where you only want to display the file names and not the full path.
 
