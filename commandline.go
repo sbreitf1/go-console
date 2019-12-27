@@ -521,7 +521,9 @@ func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *R
 		return nil, err
 	}
 
-	b.history.Put(cmd)
+	if len(cmd) > 0 && len(cmd[0]) > 0 {
+		b.history.Put(cmd)
+	}
 	return cmd, nil
 }
 
