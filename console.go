@@ -303,11 +303,12 @@ func ReadPassword() (string, error) {
 }
 
 func (d *defaultInput) BeginReadKey() error {
-	return keyboard.Open()
+	//return keyboard.Open()
+	return nil
 }
 
 func (d *defaultInput) ReadKey() (Key, rune, error) {
-	char, key, err := keyboard.GetKey()
+	char, key, err := keyboard.GetSingleKey()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -322,7 +323,7 @@ func (d *defaultInput) ReadKey() (Key, rune, error) {
 }
 
 func (d *defaultInput) EndReadKey() error {
-	keyboard.Close()
+	//keyboard.Close()
 	return nil
 }
 
@@ -331,7 +332,7 @@ func ReadKey() (Key, rune, error) {
 	var key Key
 	var r rune
 	var err error
-	WithReadKeyContext(func() error {
+	withReadKeyContext(func() error {
 		key, r, err = DefaultInput.ReadKey()
 		return nil
 	})
@@ -342,8 +343,7 @@ func readKey() (Key, rune, error) {
 	return DefaultInput.ReadKey()
 }
 
-// WithReadKeyContext executes a function and keeps a ReadKey state ready.
-func WithReadKeyContext(f func() error) error {
+func withReadKeyContext(f func() error) error {
 	if err := DefaultInput.BeginReadKey(); err != nil {
 		return err
 	}

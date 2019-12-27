@@ -41,7 +41,7 @@ func ReadCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	}
 
 	var cmd []string
-	err := WithReadKeyContext(func() error {
+	err := withReadKeyContext(func() error {
 		var err error
 		cmd, err = readCommand(prompt, opts)
 		return err
@@ -527,7 +527,7 @@ func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *R
 
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
 func (b *CommandLineEnvironment) Run() error {
-	return WithReadKeyContext(func() error {
+	return withReadKeyContext(func() error {
 		for {
 			cmd, err := b.readCommand(readCommand)
 			if err != nil {
