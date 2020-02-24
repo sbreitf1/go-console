@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/sbreitf1/go-console"
 )
 
@@ -10,15 +8,15 @@ func main() {
 	console.Print("USER: ")
 	user, err := console.ReadLine()
 	if err != nil {
-		panic(err)
+		console.Fatallnf("ReadLine failed: %s", err.Error())
 	}
 
 	console.Print("PASS: ")
 	pass, err := console.ReadPassword()
 	if err != nil {
-		panic(err)
+		console.Fatallnf("ReadPassword failed: %s", err.Error())
 	}
 
 	console.Println("#######################")
-	fmt.Println(user, "->", pass)
+	console.Printlnf("%q -> %q", user, pass)
 }

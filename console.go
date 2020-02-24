@@ -281,6 +281,16 @@ func ReadLine() (string, error) {
 	return DefaultInput.ReadLine()
 }
 
+// ReadLineWithHistory reads a line from Stdin.
+//
+//
+func ReadLineWithHistory(history LineHistory) (string, error) {
+	opts := ReadCommandOptions{
+		GetHistoryEntry: history.GetHistoryEntry,
+	}
+	return readCommandLine(nil, "", false, &opts)
+}
+
 func (d *defaultInput) ReadPassword() (string, error) {
 	var pw string
 	if err := withoutEcho(func() error {

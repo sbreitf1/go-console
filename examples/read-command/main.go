@@ -21,7 +21,7 @@ func main() {
 				break
 			}
 
-			panic(err)
+			console.Fatallnf("ReadCommand failed: %s", err.Error())
 		}
 
 		if len(cmd) > 0 {

@@ -43,7 +43,7 @@ func main() {
 	if err := cle.Run(); err != nil {
 		console.Println()
 		if !console.IsErrCtrlC(err) {
-			panic(err)
+			console.Fatallnf("Run failed: %s", err.Error())
 		}
 	}
 }

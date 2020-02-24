@@ -32,6 +32,37 @@ func TestMapToList(t *testing.T) {
 	assert.Contains(t, list, "2")
 }
 
+func TestReadLineWithHistory(t *testing.T) {
+	history := NewLineHistory(2)
+	history.Put("test")
+	history.Put("foo bar")
+
+	withMocks(func(input *mockInput) {
+		input.PutString("asdf\n")
+		l, err := ReadLineWithHistory(history)
+		assert.NoError(t, err)
+		assert.Equal(t, "asdf", l)
+
+		input.PutKeys(KeyUp, KeyEnter)
+		l, err = ReadLineWithHistory(history)
+		assert.NoError(t, err)
+		assert.Equal(t, "foo bar", l)
+
+		input.PutString("asdf")
+		input.PutKeys(KeyUp, KeyUp, KeyEnter)
+		l, err = ReadLineWithHistory(history)
+		assert.NoError(t, err)
+		assert.Equal(t, "test", l)
+
+		input.PutKeys(KeyUp, KeyUp, KeyUp, KeyUp, KeyDown, KeyEnter)
+		l, err = ReadLineWithHistory(history)
+		assert.NoError(t, err)
+		assert.Equal(t, "foo bar", l)
+
+		input.AssertBufferConsumed(t)
+	})
+}
+
 func TestReadKey(t *testing.T) {
 	str := "aü ?\n"
 	expected := []readKeyResult{

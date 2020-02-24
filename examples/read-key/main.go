@@ -9,7 +9,7 @@ func main() {
 	for {
 		key, char, err := console.ReadKey()
 		if err != nil {
-			panic(err)
+			console.Fatallnf("ReadKey failed: %s", err.Error())
 		}
 		console.Printlnf("%s -> %q", key, string(char))
 

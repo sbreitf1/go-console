@@ -20,7 +20,7 @@ var (
 // CommandHistoryHandler describes a function that returns a command from history at the given index.
 //
 // Index 0 denotes the latest command. nil is returned when the number of entries in history is exceeded. The index will never be negative.
-type CommandHistoryHandler func(index int) []string
+type CommandHistoryHandler func(index int) ([]string, bool)
 
 // ReadCommandOptions configures options and callbacks for ReadComman.
 type ReadCommandOptions struct {
@@ -53,7 +53,7 @@ func readCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	var sb strings.Builder
 
 	for {
-		line, err := readCommandLine(prompt, sb.String(), opts)
+		line, err := readCommandLine(&prompt, sb.String(), true, opts)
 		if err != nil {
 			return nil, err
 		}
@@ -71,8 +71,17 @@ func readCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	}
 }
 
-func readCommandLine(prompt, currentCommand string, opts *ReadCommandOptions) (string, error) {
-	Printf("%s> ", prompt)
+func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, opts *ReadCommandOptions) (string, error) {
+	if prompt != nil {
+		Printf("%s> ", *prompt)
+	}
+
+	var cmdToString func([]string) string
+	if escapeHistory {
+		cmdToString = GetCommandString
+	} else {
+		cmdToString = func(cmd []string) string { return strings.Join(cmd, " ") }
+	}
 
 	var sb strings.Builder
 
@@ -104,7 +113,11 @@ func readCommandLine(prompt, currentCommand string, opts *ReadCommandOptions) (s
 	}
 
 	reprintLine := func() {
-		Printf("%s> %s", prompt, sb.String())
+		if prompt == nil {
+			Printf("%s", sb.String())
+		} else {
+			Printf("%s> %s", *prompt, sb.String())
+		}
 	}
 
 	removeLastChar := func() {
@@ -139,10 +152,9 @@ func readCommandLine(prompt, currentCommand string, opts *ReadCommandOptions) (s
 
 		case KeyUp:
 			if opts.GetHistoryEntry != nil {
-				newCmd := opts.GetHistoryEntry(historyIndex + 1)
-				if newCmd != nil {
+				if newCmd, ok := opts.GetHistoryEntry(historyIndex + 1); ok {
 					historyIndex++
-					replaceLine(GetCommandString(newCmd))
+					replaceLine(cmdToString(newCmd))
 				}
 			}
 		case KeyDown:
@@ -151,9 +163,8 @@ func readCommandLine(prompt, currentCommand string, opts *ReadCommandOptions) (s
 					historyIndex--
 
 					if historyIndex >= 0 {
-						newCmd := opts.GetHistoryEntry(historyIndex)
-						if newCmd != nil {
-							replaceLine(GetCommandString(newCmd))
+						if newCmd, ok := opts.GetHistoryEntry(historyIndex); ok {
+							replaceLine(cmdToString(newCmd))
 						} else {
 							// something seems to have changed -> return to initial state
 							historyIndex = -1
@@ -383,43 +394,6 @@ func Escape(str string) string {
 	str = strings.ReplaceAll(str, "\n", "\\\n")
 	str = strings.ReplaceAll(str, "\r", "\\\r")
 	return str
-}
-
-// CommandHistory defines the interface to a history of commands.
-type CommandHistory interface {
-	Put([]string)
-	GetHistoryEntry(int) []string
-}
-
-// CommandHistory saves a fixed number of the latest commands.
-type memoryCommandHistory struct {
-	history    [][]string
-	count, pos int
-}
-
-// NewCommandHistory returns a new command history for maxCount entries.
-func NewCommandHistory(maxCount int) CommandHistory {
-	return &memoryCommandHistory{make([][]string, maxCount), 0, 0}
-}
-
-// Put saves a new command to the history as latest entry.
-func (h *memoryCommandHistory) Put(cmd []string) {
-	//TODO command deduplication
-
-	h.history[h.pos] = cmd
-	h.pos = (h.pos + 1) % len(h.history)
-	if h.count < len(h.history) {
-		h.count++
-	}
-}
-
-// GetHistoryEntry can be used as history callback for ReadCommand.
-func (h *memoryCommandHistory) GetHistoryEntry(index int) []string {
-	if index >= h.count {
-		return nil
-	}
-
-	return h.history[(h.pos-1-index+len(h.history))%len(h.history)]
 }
 
 // CommandLineEnvironment represents a command line interface environment with history and auto-completion.

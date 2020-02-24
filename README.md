@@ -12,7 +12,7 @@ This package includes the most common output methods known from the `fmt` packag
 console.Print("foo", "bar")          // outputs "foo bar"
 console.Printf("hello %s", "world")  // outputs "hello world"
 console.Println("foobar")            // outputs "foobar\n"
-console.Printlnf("foo%s", "bar")     // outputs "foobar\n")
+console.Printlnf("foo%s", "bar")     // outputs "foobar\n"
 ```
 
 For basic input you can use `ReadLine` and `ReadPassword` for hidden input:
