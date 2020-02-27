@@ -122,10 +122,10 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 
 	removeLastChar := func() {
 		if lineLen > 0 {
-			str := sb.String()
+			str := []rune(sb.String())
 			sb.Reset()
 			if len(str) > 0 {
-				sb.WriteString(str[:len(str)-1])
+				sb.WriteString(string(str[:len(str)-1]))
 			}
 
 			Print("\b \b")

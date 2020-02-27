@@ -29,6 +29,16 @@ func TestReadCommand(t *testing.T) {
 	})
 }
 
+func TestReadCommandUTF8(t *testing.T) {
+	withMocks(func(input *mockInput) {
+		input.PutString("ö\rr\n")
+		cmd, err := ReadCommand("", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"r"}, cmd)
+		input.AssertBufferConsumed(t)
+	})
+}
+
 func TestReadCommandEscape(t *testing.T) {
 	withMocks(func(input *mockInput) {
 		input.PutString("foobar")
