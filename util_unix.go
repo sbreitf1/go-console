@@ -171,10 +171,10 @@ func readKey() (Key, rune, error) {
 }
 
 func endReadKey() error {
-	ttyIn.Close()
-	ttyOut.Close()
 	if _, _, err := syscall.Syscall(syscall.SYS_IOCTL, uintptr(ttyIn.Fd()), ioctlWriteTermios, uintptr(unsafe.Pointer(&ttyOldTermios))); err != 0 {
 		return err
 	}
+	ttyIn.Close()
+	ttyOut.Close()
 	return nil
 }
