@@ -5,6 +5,11 @@ import (
 )
 
 func main() {
+	if err := console.BeginReadKey(); err != nil {
+		console.Fatallnf("Failed to open Keyboard: %s", err.Error())
+	}
+	defer console.EndReadKey()
+
 	console.Println("Press Escape to exit")
 	for {
 		key, char, err := console.ReadKey()

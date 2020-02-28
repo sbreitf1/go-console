@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/eiannone/keyboard"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -313,47 +312,34 @@ func ReadPassword() (string, error) {
 }
 
 func (d *defaultInput) BeginReadKey() error {
-	//return keyboard.Open()
-	return nil
+	return beginReadKey()
 }
 
 func (d *defaultInput) ReadKey() (Key, rune, error) {
-	char, key, err := keyboard.GetSingleKey()
-	if err != nil {
-		return 0, 0, err
-	}
-
-	// re-map keys
-	switch key {
-	case keyboard.KeyBackspace:
-		key = keyboard.KeyBackspace2
-	}
-
-	return Key(key), char, nil
+	return readKey()
 }
 
 func (d *defaultInput) EndReadKey() error {
-	//keyboard.Close()
-	return nil
+	return endReadKey()
 }
 
-// ReadKey reads a single key from terminal input and returns it along with the corresponding rune.
+func BeginReadKey() error {
+	return DefaultInput.BeginReadKey()
+}
+
 func ReadKey() (Key, rune, error) {
-	var key Key
-	var r rune
-	var err error
-	withReadKeyContext(func() error {
-		key, r, err = DefaultInput.ReadKey()
-		return nil
-	})
-	return key, r, err
-}
-
-func readKey() (Key, rune, error) {
 	return DefaultInput.ReadKey()
 }
 
-func withReadKeyContext(f func() error) error {
+func EndReadKey() error {
+	return DefaultInput.EndReadKey()
+}
+
+func readKeyAfterBegin() (Key, rune, error) {
+	return DefaultInput.ReadKey()
+}
+
+func WithReadKeyContext(f func() error) error {
 	if err := DefaultInput.BeginReadKey(); err != nil {
 		return err
 	}

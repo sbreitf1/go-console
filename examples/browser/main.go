@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/input"
 )
 
 func main() {
@@ -52,6 +53,47 @@ func main() {
 				}
 				console.Println(f.Name())
 			}
+			return nil
+		}))
+
+	cle.RegisterCommand(console.NewCustomCommand("edit",
+		console.NewFixedArgCompletion(console.NewLocalFileSystemArgCompletion(true)),
+		func(args []string) error {
+			if len(args) == 0 {
+				// no dir to enter specified
+				return fmt.Errorf("missing arg")
+			}
+
+			var content string
+			fi, err := os.Stat(args[0])
+			if err != nil {
+				if !os.IsNotExist(err) {
+					return err
+				}
+			} else {
+				if fi.IsDir() {
+					return fmt.Errorf("path is a directory")
+				}
+
+				data, err := ioutil.ReadFile(args[0])
+				if err != nil {
+					return err
+				}
+
+				content = string(data)
+			}
+
+			newContent, ok, err := input.Text(content)
+			if err != nil {
+				return err
+			}
+
+			if ok {
+				if err := ioutil.WriteFile(args[0], []byte(newContent), os.ModePerm); err != nil {
+					return err
+				}
+			}
+
 			return nil
 		}))
 

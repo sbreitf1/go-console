@@ -41,7 +41,7 @@ func ReadCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	}
 
 	var cmd []string
-	err := withReadKeyContext(func() error {
+	err := WithReadKeyContext(func() error {
 		var err error
 		cmd, err = readCommand(prompt, opts)
 		return err
@@ -136,7 +136,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 	historyIndex := -1
 
 	for {
-		key, r, err := readKey()
+		key, r, err := readKeyAfterBegin()
 		if err != nil {
 			return "", err
 		}
@@ -503,7 +503,7 @@ func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *R
 
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
 func (b *CommandLineEnvironment) Run() error {
-	return withReadKeyContext(func() error {
+	return WithReadKeyContext(func() error {
 		for {
 			cmd, err := b.readCommand(readCommand)
 			if err != nil {
@@ -589,7 +589,7 @@ func DefaultOptionsPrinter() PrintOptionsHandler {
 		if len(options) > maxAutoPrintListLen {
 			Printlnf("  print all %d options? (y/N)", len(options))
 			// assume is only called during command reading here (keyboard needs to be prepared)
-			_, r, err := readKey()
+			_, r, err := readKeyAfterBegin()
 			if err != nil {
 				return
 			}

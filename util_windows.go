@@ -5,6 +5,7 @@ package console
 import (
 	"os"
 
+	"github.com/eiannone/keyboard"
 	"golang.org/x/sys/windows"
 )
 
@@ -40,4 +41,31 @@ func withoutEcho(f func() error) error {
 func supportsColors() bool {
 	//TODO check for ANSI color support
 	return false
+}
+
+func beginReadKey() error {
+	//return keyboard.Open()
+	return nil
+}
+
+func readKey() (Key, rune, error) {
+	// does not work when inserting text
+	//char, key, err := keyboard.GetKey()
+	char, key, err := keyboard.GetSingleKey()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// re-map keys
+	switch key {
+	case keyboard.KeyBackspace:
+		key = keyboard.KeyBackspace2
+	}
+
+	return Key(key), char, nil
+}
+
+func endReadKey() error {
+	//keyboard.Close()
+	return nil
 }

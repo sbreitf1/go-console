@@ -1,6 +1,7 @@
 package console
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -113,12 +114,13 @@ type readKeyResult struct {
 }
 
 type mockInput struct {
-	buffer    []readKeyResult
-	bufferPos int
+	buffer          []readKeyResult
+	bufferPos       int
+	isReadKeyActive bool
 }
 
 func newMockInput() *mockInput {
-	return &mockInput{make([]readKeyResult, 0), 0}
+	return &mockInput{make([]readKeyResult, 0), 0, false}
 }
 
 func (m *mockInput) PutString(buffer string) {
@@ -162,6 +164,10 @@ func (m *mockInput) ReadPassword() (string, error) {
 }
 
 func (m *mockInput) BeginReadKey() error {
+	if m.isReadKeyActive {
+		return fmt.Errorf("double BeginReadKey call")
+	}
+	m.isReadKeyActive = true
 	return nil
 }
 
@@ -170,11 +176,19 @@ func (m *mockInput) ReadKey() (Key, rune, error) {
 		panic("too many ReadKey calls detected")
 	}
 
+	if !m.isReadKeyActive {
+		return 0, 0, fmt.Errorf("call to ReadKey before BeginReadKey")
+	}
+
 	result := m.buffer[m.bufferPos]
 	m.bufferPos++
 	return result.Key, result.Rune, result.Error
 }
 
 func (m *mockInput) EndReadKey() error {
+	if !m.isReadKeyActive {
+		return fmt.Errorf("call to EndReadKey before BeginReadKey")
+	}
+	m.isReadKeyActive = false
 	return nil
 }
