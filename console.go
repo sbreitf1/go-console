@@ -323,14 +323,17 @@ func (d *defaultInput) EndReadKey() error {
 	return endReadKey()
 }
 
+// BeginReadKey opens a raw TTY and allows you to use ReadKey.
 func BeginReadKey() error {
 	return DefaultInput.BeginReadKey()
 }
 
+// ReadKey returns a key and the corresponding rune or an error. BeginReadKey needs to be called first.
 func ReadKey() (Key, rune, error) {
 	return DefaultInput.ReadKey()
 }
 
+// EndReadKey closes the raw TTY opened by BeginReadKey and discards all unprocessed key events.
 func EndReadKey() error {
 	return DefaultInput.EndReadKey()
 }
@@ -339,6 +342,7 @@ func readKeyAfterBegin() (Key, rune, error) {
 	return DefaultInput.ReadKey()
 }
 
+// WithReadKeyContext executes the given function with surrounding BeginReadKey and EndReadKey calls.
 func WithReadKeyContext(f func() error) error {
 	if err := DefaultInput.BeginReadKey(); err != nil {
 		return err

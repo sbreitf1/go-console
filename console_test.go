@@ -39,6 +39,9 @@ func TestReadLineWithHistory(t *testing.T) {
 	history.Put("foo bar")
 
 	withMocks(func(input *mockInput) {
+		BeginReadKey()
+		defer EndReadKey()
+
 		input.PutString("asdf\n")
 		l, err := ReadLineWithHistory(history)
 		assert.NoError(t, err)
@@ -75,6 +78,9 @@ func TestReadKey(t *testing.T) {
 	}
 
 	withMocks(func(input *mockInput) {
+		BeginReadKey()
+		defer EndReadKey()
+
 		input.PutString(str)
 		for _, e := range expected {
 			k, r, err := ReadKey()

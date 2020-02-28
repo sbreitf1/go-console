@@ -503,26 +503,24 @@ func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *R
 
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
 func (b *CommandLineEnvironment) Run() error {
-	return WithReadKeyContext(func() error {
-		for {
-			cmd, err := b.readCommand(readCommand)
-			if err != nil {
-				return err
-			}
+	for {
+		cmd, err := b.readCommand(ReadCommand)
+		if err != nil {
+			return err
+		}
 
-			if len(cmd) > 0 {
-				if err := b.ExecCommand(cmd[0], cmd[1:]); err != nil {
-					if IsErrExit(err) {
-						return nil
-					}
-					if b.ErrorHandler == nil {
-						return err
-					}
-					b.ErrorHandler(cmd[0], cmd[1:], err)
+		if len(cmd) > 0 {
+			if err := b.ExecCommand(cmd[0], cmd[1:]); err != nil {
+				if IsErrExit(err) {
+					return nil
 				}
+				if b.ErrorHandler == nil {
+					return err
+				}
+				b.ErrorHandler(cmd[0], cmd[1:], err)
 			}
 		}
-	})
+	}
 }
 
 // GetCompletionOptions returns completion options for the given command. This method can be used as callback for ReadCommand.
