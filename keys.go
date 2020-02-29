@@ -48,6 +48,14 @@ const (
 
 func (k Key) String() string {
 	switch k {
+	case KeyEscape:
+		return "Escape"
+	case KeyCtrlC:
+		return "CtrlC"
+	case KeyCtrlW:
+		return "Ctrlw"
+	case KeyCtrlS:
+		return "CtrlS"
 	case KeyUp:
 		return "ArrowUp"
 	case KeyDown:
@@ -56,18 +64,24 @@ func (k Key) String() string {
 		return "ArrowLeft"
 	case KeyRight:
 		return "ArrowRight"
-	case KeyEscape:
-		return "Escape"
+	case KeyHome:
+		return "Home"
+	case KeyEnd:
+		return "End"
+	case KeyPageUp:
+		return "PageUp"
+	case KeyPageDown:
+		return "PageDown"
+	case KeyBackspace:
+		return "Backspace"
+	case KeyDelete:
+		return "Delete"
+	case KeyEnter:
+		return "Enter"
 	case KeyTab:
 		return "Tab"
 	case KeySpace:
 		return "Space"
-	case KeyEnter:
-		return "Enter"
-	case KeyBackspace:
-		return "Backspace"
-	case KeyCtrlC:
-		return "CtrlC"
 
 	default:
 		return fmt.Sprintf("Key[%d]", k)

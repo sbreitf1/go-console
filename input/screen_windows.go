@@ -3,8 +3,9 @@
 package input
 
 import (
-	"github.com/gdamore/tcell"
 	"github.com/sbreitf1/go-console"
+
+	"github.com/gdamore/tcell"
 )
 
 type windowsScreen struct {

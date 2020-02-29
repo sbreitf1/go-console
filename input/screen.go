@@ -28,6 +28,7 @@ type keyEvent struct {
 type resizeEvent struct{}
 
 func printCells(screen screen, str string, x, y int) {
+	//TODO support for multiline string
 	runes := []rune(str)
 	for i := range runes {
 		screen.SetCell(x+i, y, runes[i])
