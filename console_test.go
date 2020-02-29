@@ -1,7 +1,6 @@
 package console
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,168 +32,52 @@ func TestMapToList(t *testing.T) {
 	assert.Contains(t, list, "2")
 }
 
-func TestReadLineWithHistory(t *testing.T) {
-	history := NewLineHistory(2)
-	history.Put("test")
-	history.Put("foo bar")
-
-	withMocks(func(input *mockInput) {
-		BeginReadKey()
-		defer EndReadKey()
-
-		input.PutString("asdf\n")
-		l, err := ReadLineWithHistory(history)
-		assert.NoError(t, err)
-		assert.Equal(t, "asdf", l)
-
-		input.PutKeys(KeyUp, KeyEnter)
-		l, err = ReadLineWithHistory(history)
-		assert.NoError(t, err)
-		assert.Equal(t, "foo bar", l)
-
-		input.PutString("asdf")
-		input.PutKeys(KeyUp, KeyUp, KeyEnter)
-		l, err = ReadLineWithHistory(history)
-		assert.NoError(t, err)
-		assert.Equal(t, "test", l)
-
-		input.PutKeys(KeyUp, KeyUp, KeyUp, KeyUp, KeyDown, KeyEnter)
-		l, err = ReadLineWithHistory(history)
-		assert.NoError(t, err)
-		assert.Equal(t, "foo bar", l)
-
-		input.AssertBufferConsumed(t)
-	})
-}
-
 func TestReadKey(t *testing.T) {
-	str := "aü ?\n"
-	expected := []readKeyResult{
-		readKeyResult{0, 'a', nil},
-		readKeyResult{0, 'ü', nil},
-		readKeyResult{KeySpace, 0, nil},
-		readKeyResult{0, '?', nil},
-		readKeyResult{KeyEnter, 0, nil},
-	}
-
-	withMocks(func(input *mockInput) {
-		BeginReadKey()
-		defer EndReadKey()
-
-		input.PutString(str)
-		for _, e := range expected {
-			k, r, err := ReadKey()
-			if !assert.Equal(t, e.Key, k, "Expected Key %s", e.Key) {
-				break
-			}
-			if !assert.Equal(t, e.Rune, r, "Expected Rune %s", string(e.Rune)) {
-				break
-			}
-			if !assert.Equal(t, e.Error, err) {
-				break
-			}
-		}
-		input.AssertBufferConsumed(t)
-	})
-}
-
-func withMocks(f func(input *mockInput)) {
 	oldInput := DefaultInput
-	oldOutput := DefaultOutput
-
 	defer func() {
 		DefaultInput = oldInput
-		DefaultOutput = oldOutput
 	}()
+	DefaultInput = &keyFakeInput{KeyEnter, '\n', nil, false}
 
-	input := newMockInput()
-	DefaultInput = input
+	BeginReadKey()
+	defer EndReadKey()
 
-	f(input)
+	key, r, err := ReadKey()
+	assert.Equal(t, KeyEnter, key)
+	assert.Equal(t, '\n', r)
+	assert.NoError(t, err)
 }
 
-type readKeyResult struct {
-	Key   Key
-	Rune  rune
-	Error error
+type keyFakeInput struct {
+	Key       Key
+	Rune      rune
+	Error     error
+	isReading bool
 }
 
-type mockInput struct {
-	buffer          []readKeyResult
-	bufferPos       int
-	isReadKeyActive bool
+func (i *keyFakeInput) ReadLine() (string, error) {
+	panic("ReadLine not implemented on keyFakeInput")
 }
-
-func newMockInput() *mockInput {
-	return &mockInput{make([]readKeyResult, 0), 0, false}
+func (i *keyFakeInput) ReadPassword() (string, error) {
+	panic("ReadLine not implemented on keyFakeInput")
 }
-
-func (m *mockInput) PutString(buffer string) {
-	for _, r := range buffer {
-		switch r {
-		case '\r':
-			m.buffer = append(m.buffer, readKeyResult{KeyBackspace, 0, nil})
-		case '\n':
-			m.buffer = append(m.buffer, readKeyResult{KeyEnter, 0, nil})
-		case ' ':
-			m.buffer = append(m.buffer, readKeyResult{KeySpace, 0, nil})
-		case '\t':
-			m.buffer = append(m.buffer, readKeyResult{KeyTab, 0, nil})
-
-		default:
-			m.buffer = append(m.buffer, readKeyResult{0, r, nil})
-		}
+func (i *keyFakeInput) BeginReadKey() error {
+	if i.isReading {
+		panic("BeginReadKey after BeginReadKey")
 	}
-}
-
-func (m *mockInput) PutKeys(keys ...Key) {
-	for _, k := range keys {
-		m.buffer = append(m.buffer, readKeyResult{k, 0, nil})
-	}
-}
-
-func (m *mockInput) BufferConsumed() bool {
-	return m.bufferPos >= len(m.buffer)
-}
-
-func (m *mockInput) AssertBufferConsumed(t *testing.T) bool {
-	return assert.True(t, m.BufferConsumed(), "Not all input buffer chars have been consumed")
-}
-
-func (m *mockInput) ReadLine() (string, error) {
-	panic("ReadLine not available for mock")
-}
-
-func (m *mockInput) ReadPassword() (string, error) {
-	panic("ReadPassword not available for mock")
-}
-
-func (m *mockInput) BeginReadKey() error {
-	if m.isReadKeyActive {
-		return fmt.Errorf("double BeginReadKey call")
-	}
-	m.isReadKeyActive = true
+	i.isReading = true
 	return nil
 }
-
-func (m *mockInput) ReadKey() (Key, rune, error) {
-	if m.BufferConsumed() {
-		panic("too many ReadKey calls detected")
+func (i *keyFakeInput) ReadKey() (Key, rune, error) {
+	if !i.isReading {
+		panic("ReadKey before BeginReadKey")
 	}
-
-	if !m.isReadKeyActive {
-		return 0, 0, fmt.Errorf("call to ReadKey before BeginReadKey")
-	}
-
-	result := m.buffer[m.bufferPos]
-	m.bufferPos++
-	return result.Key, result.Rune, result.Error
+	return i.Key, i.Rune, i.Error
 }
-
-func (m *mockInput) EndReadKey() error {
-	if !m.isReadKeyActive {
-		return fmt.Errorf("call to EndReadKey before BeginReadKey")
+func (i *keyFakeInput) EndReadKey() error {
+	if !i.isReading {
+		panic("EndReadKey before BeginReadKey")
 	}
-	m.isReadKeyActive = false
+	i.isReading = false
 	return nil
 }

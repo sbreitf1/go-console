@@ -1,10 +1,12 @@
-package console
+package commandline
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/sbreitf1/go-console"
 )
 
 const (
@@ -41,7 +43,7 @@ func ReadCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 	}
 
 	var cmd []string
-	err := WithReadKeyContext(func() error {
+	err := console.WithReadKeyContext(func() error {
 		var err error
 		cmd, err = readCommand(prompt, opts)
 		return err
@@ -73,7 +75,7 @@ func readCommand(prompt string, opts *ReadCommandOptions) ([]string, error) {
 
 func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, opts *ReadCommandOptions) (string, error) {
 	if prompt != nil {
-		Printf("%s> ", *prompt)
+		console.Printf("%s> ", *prompt)
 	}
 
 	var cmdToString func([]string) string
@@ -89,13 +91,13 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 
 	putRune := func(r rune) {
 		sb.WriteRune(r)
-		Print(string(r))
+		console.Print(string(r))
 		lineLen++
 	}
 
 	putString := func(str string) {
 		sb.WriteString(str)
-		Print(str)
+		console.Print(str)
 		lineLen += len(str)
 	}
 
@@ -103,7 +105,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 		sb.Reset()
 		str1 := strings.Repeat("\b", lineLen)
 		str2 := strings.Repeat(" ", lineLen)
-		Printf("%s%s%s", str1, str2, str1)
+		console.Printf("%s%s%s", str1, str2, str1)
 		lineLen = 0
 	}
 
@@ -114,9 +116,9 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 
 	reprintLine := func() {
 		if prompt == nil {
-			Printf("%s", sb.String())
+			console.Printf("%s", sb.String())
 		} else {
-			Printf("%s> %s", *prompt, sb.String())
+			console.Printf("%s> %s", *prompt, sb.String())
 		}
 	}
 
@@ -128,7 +130,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 				sb.WriteString(string(str[:len(str)-1]))
 			}
 
-			Print("\b \b")
+			console.Print("\b \b")
 			lineLen--
 		}
 	}
@@ -136,7 +138,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 	historyIndex := -1
 
 	for {
-		key, r, err := readKeyAfterBegin()
+		key, r, err := console.ReadKey()
 		if err != nil {
 			return "", err
 		}
@@ -144,20 +146,20 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 		//TODO move caret along line
 
 		switch key {
-		case KeyCtrlC:
+		case console.KeyCtrlC:
 			return "", ErrCtrlC()
 
-		case KeyEscape:
+		case console.KeyEscape:
 			clearLine()
 
-		case KeyUp:
+		case console.KeyUp:
 			if opts.GetHistoryEntry != nil {
 				if newCmd, ok := opts.GetHistoryEntry(historyIndex + 1); ok {
 					historyIndex++
 					replaceLine(cmdToString(newCmd))
 				}
 			}
-		case KeyDown:
+		case console.KeyDown:
 			if opts.GetHistoryEntry != nil {
 				if historyIndex >= 0 {
 					historyIndex--
@@ -176,7 +178,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 				}
 			}
 
-		case KeyTab:
+		case console.KeyTab:
 			if opts.GetCompletionOptions != nil {
 				str := sb.String()
 				cmd, _ := ParseCommand(fmt.Sprintf("%s%s", currentCommand, str))
@@ -198,7 +200,7 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 					if time.Since(lastTabPress) < doubleTabSpan {
 						if opts.PrintOptionsHandler != nil {
 							// double-tab detected -> print options
-							Println()
+							console.Println()
 
 							sort.Slice(options, func(i, j int) bool {
 								return options[i].String() < options[j].String()
@@ -240,14 +242,14 @@ func readCommandLine(prompt *string, currentCommand string, escapeHistory bool, 
 				}
 			}
 
-		case KeyEnter:
-			Println()
+		case console.KeyEnter:
+			console.Println()
 			return sb.String(), nil
 
-		case KeyBackspace:
+		case console.KeyBackspace:
 			removeLastChar()
 
-		case KeySpace:
+		case console.KeySpace:
 			putRune(' ')
 
 		case 0:
@@ -396,8 +398,8 @@ func Escape(str string) string {
 	return str
 }
 
-// CommandLineEnvironment represents a command line interface environment with history and auto-completion.
-type CommandLineEnvironment struct {
+// Environment represents a command line interface environment with history and auto-completion.
+type Environment struct {
 	// Prompt is called when displaying a command line prompt.
 	Prompt PromptHandler
 	// PrintOptions is called for double-tab option printing.
@@ -428,21 +430,21 @@ type ExecUnknownCommandHandler func(cmd string, args []string) error
 // Should return nil when the error has been handled, otherwise the command handler will stop and return the error.
 type CommandErrorHandler func(cmd string, args []string, err error) error
 
-// NewCommandLineEnvironment returns a new command line environment.
-func NewCommandLineEnvironment() *CommandLineEnvironment {
-	return &CommandLineEnvironment{
+// NewEnvironment returns a new command line environment.
+func NewEnvironment() *Environment {
+	return &Environment{
 		Prompt:       func() string { return "cle" },
 		PrintOptions: DefaultOptionsPrinter(),
 		ExecUnknownCommand: func(cmd string, _ []string) error {
-			_, err := Printlnf("Unknown command %q", cmd)
+			_, err := console.Printlnf("Unknown command %q", cmd)
 			return err
 		},
 		CompleteUnknownCommand: nil,
 		ErrorHandler: func(_ string, _ []string, err error) error {
 			if IsErrCommandPanicked(err) {
-				Printlnf("PANIC: %s", err.Error())
+				console.Printlnf("PANIC: %s", err.Error())
 			} else {
-				Printlnf("ERROR: %s", err.Error())
+				console.Printlnf("ERROR: %s", err.Error())
 			}
 			return nil
 		},
@@ -454,11 +456,11 @@ func NewCommandLineEnvironment() *CommandLineEnvironment {
 }
 
 // SetStaticPrompt sets a constant prompt to display for command input.
-func (b *CommandLineEnvironment) SetStaticPrompt(prompt string) {
+func (b *Environment) SetStaticPrompt(prompt string) {
 	b.Prompt = func() string { return prompt }
 }
 
-func (b *CommandLineEnvironment) prompt() string {
+func (b *Environment) prompt() string {
 	if b.Prompt == nil {
 		return ""
 	}
@@ -466,12 +468,12 @@ func (b *CommandLineEnvironment) prompt() string {
 }
 
 // RegisterCommand adds a new command to the command line environment.
-func (b *CommandLineEnvironment) RegisterCommand(cmd Command) {
+func (b *Environment) RegisterCommand(cmd Command) {
 	b.commands[cmd.Name()] = cmd
 }
 
 // UnregisterCommand removes a command from the command line environment and returns true if it was existent before.
-func (b *CommandLineEnvironment) UnregisterCommand(commandName string) bool {
+func (b *Environment) UnregisterCommand(commandName string) bool {
 	_, exists := b.commands[commandName]
 	if exists {
 		delete(b.commands, commandName)
@@ -480,11 +482,11 @@ func (b *CommandLineEnvironment) UnregisterCommand(commandName string) bool {
 }
 
 // ReadCommand reads a command for the configured environment.
-func (b *CommandLineEnvironment) ReadCommand() ([]string, error) {
+func (b *Environment) ReadCommand() ([]string, error) {
 	return b.readCommand(ReadCommand)
 }
 
-func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *ReadCommandOptions) ([]string, error)) ([]string, error) {
+func (b *Environment) readCommand(handler func(prompt string, opts *ReadCommandOptions) ([]string, error)) ([]string, error) {
 	opts := &ReadCommandOptions{
 		GetHistoryEntry:      b.history.GetHistoryEntry,
 		GetCompletionOptions: b.GetCompletionOptions,
@@ -502,7 +504,7 @@ func (b *CommandLineEnvironment) readCommand(handler func(prompt string, opts *R
 }
 
 // Run reads and processes commands until an error is returned. Use ErrExit to gracefully stop processing.
-func (b *CommandLineEnvironment) Run() error {
+func (b *Environment) Run() error {
 	for {
 		cmd, err := b.readCommand(ReadCommand)
 		if err != nil {
@@ -524,7 +526,7 @@ func (b *CommandLineEnvironment) Run() error {
 }
 
 // GetCompletionOptions returns completion options for the given command. This method can be used as callback for ReadCommand.
-func (b *CommandLineEnvironment) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
+func (b *Environment) GetCompletionOptions(currentCommand []string, entryIndex int) []CompletionOption {
 	if entryIndex == 0 {
 		if b.UseCommandNameCompletion {
 			// completion for command
@@ -549,7 +551,7 @@ func (b *CommandLineEnvironment) GetCompletionOptions(currentCommand []string, e
 }
 
 // ExecCommand executes a command as if it has been entered in terminal.
-func (b *CommandLineEnvironment) ExecCommand(cmd string, args []string) error {
+func (b *Environment) ExecCommand(cmd string, args []string) error {
 	var recovered interface{}
 
 	err := func() error {
@@ -585,9 +587,9 @@ type PrintOptionsHandler func([]CompletionOption)
 func DefaultOptionsPrinter() PrintOptionsHandler {
 	return func(options []CompletionOption) {
 		if len(options) > maxAutoPrintListLen {
-			Printlnf("  print all %d options? (y/N)", len(options))
+			console.Printlnf("  print all %d options? (y/N)", len(options))
 			// assume is only called during command reading here (keyboard needs to be prepared)
-			_, r, err := readKeyAfterBegin()
+			_, r, err := console.ReadKey()
 			if err != nil {
 				return
 			}
@@ -597,7 +599,7 @@ func DefaultOptionsPrinter() PrintOptionsHandler {
 			}
 		}
 
-		PrintList(options)
+		console.PrintList(options)
 	}
 }
 

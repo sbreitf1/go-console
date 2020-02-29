@@ -5,14 +5,15 @@ import (
 	"strings"
 
 	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/commandline"
 )
 
 func main() {
-	cle := console.NewCommandLineEnvironment()
-	cle.RegisterCommand(console.NewExitCommand("exit"))
+	cle := commandline.NewEnvironment()
+	cle.RegisterCommand(commandline.NewExitCommand("exit"))
 
 	errHandler := func(cmd string, args []string, err error) error {
-		if console.IsErrCommandPanicked(err) {
+		if commandline.IsErrCommandPanicked(err) {
 			console.Printlnf("PANIC: %s", err.Error())
 		} else {
 			console.Printlnf("ERROR: %s", err.Error())
@@ -21,9 +22,9 @@ func main() {
 	}
 	cle.ErrorHandler = errHandler
 
-	cle.RegisterCommand(console.NewCustomCommand("toggle",
-		console.NewFixedArgCompletion(
-			console.NewOneOfArgCompletion("error", "panic"),
+	cle.RegisterCommand(commandline.NewCustomCommand("toggle",
+		commandline.NewFixedArgCompletion(
+			commandline.NewOneOfArgCompletion("error", "panic"),
 		),
 		func(args []string) error {
 			if len(args) > 0 {
@@ -51,16 +52,16 @@ func main() {
 			return nil
 		}))
 
-	cle.RegisterCommand(console.NewParameterlessCommand("error", func(args []string) error {
+	cle.RegisterCommand(commandline.NewParameterlessCommand("error", func(args []string) error {
 		return fmt.Errorf(strings.Join(args, " "))
 	}))
 
-	cle.RegisterCommand(console.NewParameterlessCommand("panic", func(args []string) error {
+	cle.RegisterCommand(commandline.NewParameterlessCommand("panic", func(args []string) error {
 		panic(strings.Join(args, " "))
 	}))
 
 	if err := cle.Run(); err != nil {
-		if console.IsErrCommandPanicked(err) {
+		if commandline.IsErrCommandPanicked(err) {
 			console.Printlnf("FATAL PANIC: %s", err.Error())
 		} else {
 			console.Printlnf("FATAL ERROR: %s", err.Error())

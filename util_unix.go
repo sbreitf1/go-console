@@ -78,7 +78,7 @@ func beginReadKey() error {
 	return nil
 }
 
-func readKey() (Key, rune, error) {
+func readKey() (KeyKey, rune, error) {
 	buf := make([]byte, 4)
 	var bufLen int
 	if len(ttyBuffer) > 0 {

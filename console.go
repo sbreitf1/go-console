@@ -32,11 +32,12 @@ type Input interface {
 	EndReadKey() error
 }
 
-// Output defines functionality to handle console output.
+// Output defines functionality to handle console output and os responses.
 type Output interface {
 	Print(string) (int, error)
 	GetSize() (int, int, error)
 	SupportsColors() bool
+	Exit(int)
 }
 
 type defaultInput struct {
@@ -75,28 +76,32 @@ func Printlnf(format string, a ...interface{}) (int, error) {
 	return Println(fmt.Sprintf(format, a...))
 }
 
-// Fatal calls Print and os.Exit(1).
+// Fatal calls Print and exits with code 1.
 func Fatal(a ...interface{}) {
-	fatal(Print(a...))
+	fatalWrapper(Print(a...))
 }
 
-// Fatalf calls Printf and os.Exit(1).
+// Fatalf calls Printf and exits with code 1.
 func Fatalf(format string, a ...interface{}) {
-	fatal(Printf(format, a...))
+	fatalWrapper(Printf(format, a...))
 }
 
-// Fatalln calls Println and os.Exit(1).
+// Fatalln calls Println and exits with code 1.
 func Fatalln(a ...interface{}) {
-	fatal(Println(a...))
+	fatalWrapper(Println(a...))
 }
 
-// Fatallnf calls Printlnf and os.Exit(1).
+// Fatallnf calls Printlnf and exits with code 1.
 func Fatallnf(format string, a ...interface{}) {
-	fatal(Printlnf(format, a...))
+	fatalWrapper(Printlnf(format, a...))
 }
 
-func fatal(int, error) {
-	os.Exit(1)
+func (d *defaultOutput) Exit(code int) {
+	os.Exit(code)
+}
+
+func fatalWrapper(int, error) {
+	DefaultOutput.Exit(1)
 }
 
 // PrintList prints all array or map values in a regular grid.
@@ -280,16 +285,6 @@ func ReadLine() (string, error) {
 	return DefaultInput.ReadLine()
 }
 
-// ReadLineWithHistory reads a line from Stdin.
-//
-//
-func ReadLineWithHistory(history LineHistory) (string, error) {
-	opts := ReadCommandOptions{
-		GetHistoryEntry: history.GetHistoryEntry,
-	}
-	return readCommandLine(nil, "", false, &opts)
-}
-
 func (d *defaultInput) ReadPassword() (string, error) {
 	var pw string
 	if err := withoutEcho(func() error {
@@ -336,10 +331,6 @@ func ReadKey() (Key, rune, error) {
 // EndReadKey closes the raw TTY opened by BeginReadKey and discards all unprocessed key events.
 func EndReadKey() error {
 	return DefaultInput.EndReadKey()
-}
-
-func readKeyAfterBegin() (Key, rune, error) {
-	return DefaultInput.ReadKey()
 }
 
 // WithReadKeyContext executes the given function with surrounding BeginReadKey and EndReadKey calls.

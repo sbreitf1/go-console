@@ -2,14 +2,15 @@ package main
 
 import (
 	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/commandline"
 )
 
 func main() {
 	console.Println("Demo command line interface")
 
-	cle := console.NewCommandLineEnvironment()
+	cle := commandline.NewEnvironment()
 
-	cle.RegisterCommand(console.NewExitCommand("exit"))
+	cle.RegisterCommand(commandline.NewExitCommand("exit"))
 
 	cle.ExecUnknownCommand = func(cmd string, args []string) error {
 		console.Printlnf("Unknown command %q", cmd)
@@ -19,11 +20,11 @@ func main() {
 		return nil
 	}
 
-	cle.RegisterCommand(console.NewCustomCommand("duck",
-		func(cmd []string, index int) []console.CompletionOption {
-			options := make([]console.CompletionOption, 0)
+	cle.RegisterCommand(commandline.NewCustomCommand("duck",
+		func(cmd []string, index int) []commandline.CompletionOption {
+			options := make([]commandline.CompletionOption, 0)
 			for name := range ducks {
-				options = append(options, console.NewCompletionOption(name, false))
+				options = append(options, commandline.NewCompletionOption(name, false))
 			}
 			return options
 		},
@@ -42,7 +43,7 @@ func main() {
 
 	if err := cle.Run(); err != nil {
 		console.Println()
-		if !console.IsErrCtrlC(err) {
+		if !commandline.IsErrCtrlC(err) {
 			console.Fatallnf("Run failed: %s", err.Error())
 		}
 	}

@@ -6,13 +6,14 @@ import (
 	"os"
 
 	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/commandline"
 	"github.com/sbreitf1/go-console/input"
 )
 
 func main() {
 	console.Println("Demo browser")
 
-	cle := console.NewCommandLineEnvironment()
+	cle := commandline.NewEnvironment()
 	cle.Prompt = func() string {
 		pwd, err := os.Getwd()
 		if err != nil {
@@ -26,10 +27,10 @@ func main() {
 		return pwd
 	}
 
-	cle.RegisterCommand(console.NewExitCommand("exit"))
+	cle.RegisterCommand(commandline.NewExitCommand("exit"))
 
-	cle.RegisterCommand(console.NewCustomCommand("cd",
-		console.NewFixedArgCompletion(console.NewLocalFileSystemArgCompletion(false)),
+	cle.RegisterCommand(commandline.NewCustomCommand("cd",
+		commandline.NewFixedArgCompletion(commandline.NewLocalFileSystemArgCompletion(false)),
 		func(args []string) error {
 			if len(args) == 0 {
 				// no dir to enter specified
@@ -38,7 +39,7 @@ func main() {
 			return os.Chdir(args[0])
 		}))
 
-	cle.RegisterCommand(console.NewParameterlessCommand("ls",
+	cle.RegisterCommand(commandline.NewParameterlessCommand("ls",
 		func(args []string) error {
 			// print current working dir content
 			files, err := ioutil.ReadDir("./")
@@ -56,8 +57,8 @@ func main() {
 			return nil
 		}))
 
-	cle.RegisterCommand(console.NewCustomCommand("edit",
-		console.NewFixedArgCompletion(console.NewLocalFileSystemArgCompletion(true)),
+	cle.RegisterCommand(commandline.NewCustomCommand("edit",
+		commandline.NewFixedArgCompletion(commandline.NewLocalFileSystemArgCompletion(true)),
 		func(args []string) error {
 			if len(args) == 0 {
 				// no dir to enter specified
@@ -99,7 +100,7 @@ func main() {
 
 	if err := cle.Run(); err != nil {
 		console.Println()
-		if !console.IsErrCtrlC(err) {
+		if !commandline.IsErrCtrlC(err) {
 			console.Fatallnf("Run failed: %s", err.Error())
 		}
 	}

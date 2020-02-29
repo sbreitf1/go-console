@@ -1,15 +1,18 @@
-package console
+package commandline
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/consoletest"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestParseCompleteCommand(t *testing.T) {
-	cmd, isComplete := ParseCommand(`echo foo 'say "hello world"' "white space" escape\ sequence "\""`)
-	assert.Equal(t, []string{"echo", "foo", "say \"hello world\"", "white space", "escape sequence", "\""}, cmd)
+	cmd, isComplete := ParseCommand(`echo foo 'say "hello world"' "white space" console.Key\ sequence "\""`)
+	assert.Equal(t, []string{"echo", "foo", "say \"hello world\"", "white space", "console.Key sequence", "\""}, cmd)
 	assert.True(t, isComplete)
 }
 
@@ -20,7 +23,7 @@ func TestParseIncompleteCommand(t *testing.T) {
 }
 
 func TestReadCommand(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("foo bat\rr\n")
 		cmd, err := ReadCommand("", nil)
 		assert.NoError(t, err)
@@ -30,7 +33,7 @@ func TestReadCommand(t *testing.T) {
 }
 
 func TestReadCommandUTF8(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("ö\rr\n")
 		cmd, err := ReadCommand("", nil)
 		assert.NoError(t, err)
@@ -40,9 +43,9 @@ func TestReadCommandUTF8(t *testing.T) {
 }
 
 func TestReadCommandEscape(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("foobar")
-		input.PutKeys(KeyEscape)
+		input.PutKeys(console.KeyEscape)
 		input.PutString("test\n")
 		cmd, err := ReadCommand("", nil)
 		assert.NoError(t, err)
@@ -52,7 +55,7 @@ func TestReadCommandEscape(t *testing.T) {
 }
 
 func TestReadMultilineCommand(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("foo \"foo\nbar\" foo\\\nbar\n")
 		cmd, err := ReadCommand("", nil)
 		assert.NoError(t, err)
@@ -62,17 +65,17 @@ func TestReadMultilineCommand(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentHistory(t *testing.T) {
-	withMocks(func(input *mockInput) {
-		input.PutKeys(KeyUp, KeyDown)
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
+		input.PutKeys(console.KeyUp, console.KeyDown)
 		input.PutString("\n")
 		input.PutString("p\tf\t\n")
-		input.PutKeys(KeyUp)
+		input.PutKeys(console.KeyUp)
 		input.PutString("\nprint 1\nprint 2\n")
-		input.PutKeys(KeyUp, KeyUp)
+		input.PutKeys(console.KeyUp, console.KeyUp)
 		input.PutString("\n")
-		input.PutKeys(KeyDown, KeyUp, KeyUp, KeyDown)
+		input.PutKeys(console.KeyDown, console.KeyUp, console.KeyUp, console.KeyDown)
 		input.PutString("\n")
-		input.PutKeys(KeyUp, KeyUp, KeyUp, KeyUp, KeyUp, KeyUp)
+		input.PutKeys(console.KeyUp, console.KeyUp, console.KeyUp, console.KeyUp, console.KeyUp, console.KeyUp)
 		input.PutString("\nexit\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -84,7 +87,7 @@ func TestCommandLineEnvironmentHistory(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentSimpleCompletion(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("p\tf\t\np\tb\t\nexit\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -96,7 +99,7 @@ func TestCommandLineEnvironmentSimpleCompletion(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentPartialCompletion(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("p\tf\t_\np\tp\t_\nexit\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -108,7 +111,7 @@ func TestCommandLineEnvironmentPartialCompletion(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentEmptyInputCompletion(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("\t\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -121,7 +124,7 @@ func TestCommandLineEnvironmentEmptyInputCompletion(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentSingleOptionCompletion(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("p\t\t\nexit\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -140,7 +143,7 @@ func TestCommandLineEnvironmentSingleOptionCompletion(t *testing.T) {
 }
 
 func TestCommandLineEnvironmentLongestPrefixCompletion(t *testing.T) {
-	withMocks(func(input *mockInput) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("p\tf\t1\np\tf\t2\t1\nexit\n")
 
 		cle, _, sb := prepareTestCLE()
@@ -160,11 +163,11 @@ func TestCommandLineEnvironmentLongestPrefixCompletion(t *testing.T) {
 	})
 }
 
-func prepareTestCLE() (*CommandLineEnvironment, *int, *strings.Builder) {
+func prepareTestCLE() (*Environment, *int, *strings.Builder) {
 	var sb strings.Builder
 	var lastCompletionIndex int
 
-	cle := NewCommandLineEnvironment()
+	cle := NewEnvironment()
 	cle.RegisterCommand(NewExitCommand("exit"))
 	cle.RegisterCommand(NewCustomCommand("print",
 		func(cmd []string, index int) []CompletionOption {

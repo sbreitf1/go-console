@@ -2,21 +2,22 @@ package main
 
 import (
 	"github.com/sbreitf1/go-console"
+	"github.com/sbreitf1/go-console/commandline"
 )
 
 func main() {
-	history := console.NewCommandHistory(3)
+	history := commandline.NewCommandHistory(3)
 
-	opts := &console.ReadCommandOptions{
+	opts := &commandline.ReadCommandOptions{
 		GetHistoryEntry:     history.GetHistoryEntry,
-		PrintOptionsHandler: console.DefaultOptionsPrinter(),
+		PrintOptionsHandler: commandline.DefaultOptionsPrinter(),
 	}
 
 	console.Println("type exit to leave")
 	for {
-		cmd, err := console.ReadCommand("command", opts)
+		cmd, err := commandline.ReadCommand("command", opts)
 		if err != nil {
-			if console.IsErrCtrlC(err) {
+			if commandline.IsErrCtrlC(err) {
 				console.Println()
 				break
 			}

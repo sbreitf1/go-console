@@ -1,8 +1,6 @@
 package input
 
-import (
-	"github.com/sbreitf1/go-console"
-)
+import "github.com/sbreitf1/go-console"
 
 type screen interface {
 	Clear()
