@@ -12,14 +12,14 @@ type unixScreen struct{}
 
 func newScreen() (screen, error) {
 	if err := termbox.Init(); err != nil {
-		return "", false, err
+		return nil, err
 	}
 
-	return &unixScreen{}
+	return &unixScreen{}, nil
 }
 
 func (s *unixScreen) Clear() {
-	termbox.Clear()
+	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 }
 func (s *unixScreen) Size() (int, int) {
 	return termbox.Size()
@@ -48,21 +48,21 @@ func (s *unixScreen) PollEvent() event {
 			case termbox.KeyCtrlS:
 				return keyEvent{console.KeyCtrlS, '\000'}
 
-			case termbox.KeyUp:
+			case termbox.KeyArrowUp:
 				return keyEvent{console.KeyUp, '\000'}
-			case termbox.KeyDown:
+			case termbox.KeyArrowDown:
 				return keyEvent{console.KeyDown, '\000'}
-			case termbox.KeyLeft:
+			case termbox.KeyArrowLeft:
 				return keyEvent{console.KeyLeft, '\000'}
-			case termbox.KeyRight:
+			case termbox.KeyArrowRight:
 				return keyEvent{console.KeyRight, '\000'}
 			case termbox.KeyHome:
 				return keyEvent{console.KeyHome, '\000'}
 			case termbox.KeyEnd:
 				return keyEvent{console.KeyEnd, '\000'}
-			case termbox.KeyPgUp:
+			case termbox.KeyPgup:
 				return keyEvent{console.KeyPageUp, '\000'}
-			case termbox.KeyPgDn:
+			case termbox.KeyPgdn:
 				return keyEvent{console.KeyPageDown, '\000'}
 
 			case termbox.KeyBackspace:
