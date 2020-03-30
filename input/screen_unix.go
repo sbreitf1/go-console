@@ -73,6 +73,8 @@ func (s *unixScreen) PollEvent() event {
 				return keyEvent{console.KeyDelete, '\000'}
 			case termbox.KeyEnter:
 				return keyEvent{console.KeyEnter, '\n'}
+			case termbox.KeySpace:
+				return keyEvent{console.KeySpace, ' '}
 			case termbox.KeyTab:
 				return keyEvent{console.KeyTab, '\t'}
 
