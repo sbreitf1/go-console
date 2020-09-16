@@ -32,6 +32,16 @@ func TestReadCommand(t *testing.T) {
 	})
 }
 
+func TestReadCommandEscapeSequences(t *testing.T) {
+	consoletest.WithMocks(func(input *consoletest.MockInput) {
+		input.PutString(`foo "bar\\test" '\blub' "\n_\ aha\$bar"` + "\n")
+		cmd, err := ReadCommand("", nil)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"foo", "bar\\test", "\\blub", "\\n_\\ aha$bar"}, cmd)
+		input.AssertBufferConsumed(t)
+	})
+}
+
 func TestReadCommandUTF8(t *testing.T) {
 	consoletest.WithMocks(func(input *consoletest.MockInput) {
 		input.PutString("ö\rr\n")

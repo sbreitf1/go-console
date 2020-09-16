@@ -318,6 +318,10 @@ func ParseCommand(str string) (parts []string, isComplete bool) {
 
 		} else if doubleQuote {
 			if escape {
+				if r != '\\' && r != '$' && r != '"' {
+					// consume escape character only for actual escape sequences
+					sb.WriteRune('\\')
+				}
 				sb.WriteRune(r)
 				escape = false
 
@@ -389,6 +393,7 @@ func NeedQuote(str string) bool {
 
 // Escape returns a string that escapes all special chars.
 func Escape(str string) string {
+	//TODO revise escape
 	str = strings.ReplaceAll(str, "\\", "\\\\")
 	str = strings.ReplaceAll(str, "\"", "\\\"")
 	str = strings.ReplaceAll(str, "'", "\\'")
