@@ -1,13 +1,16 @@
 module github.com/sbreitf1/go-console
 
-go 1.13
+go 1.15
 
 require (
-	github.com/eiannone/keyboard v0.0.0-20190314115158-7169d0afeb4f
-	github.com/gdamore/tcell v1.3.0
-	github.com/mattn/go-runewidth v0.0.8 // indirect
-	github.com/nsf/termbox-go v0.0.0-20200204031403-4d2b513ad8be
-	github.com/stretchr/testify v1.4.0
-	golang.org/x/crypto v0.0.0-20191122220453-ac88ee75c92c
-	golang.org/x/sys v0.0.0-20191128015809-6d18c012aee9
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/eiannone/keyboard v0.0.0-20200508000154-caf4b762e807
+	github.com/gdamore/tcell v1.4.0
+	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/nsf/termbox-go v0.0.0-20200418040025-38ba6e5628f1
+	github.com/stretchr/testify v1.6.1
+	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
+	golang.org/x/sys v0.0.0-20201101102859-da207088b7d1
+	golang.org/x/text v0.3.4 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )
