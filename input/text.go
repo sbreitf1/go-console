@@ -61,6 +61,11 @@ func (e *textEditor) LineRange(start, count int) []string {
 }
 
 func (e *textEditor) MoveCaretLeft() bool {
+	// check if caret in bounds. first check here to keep caret pos on short lines during vertical navigation
+	if e.caretLine < len(e.lines) && e.caretPos >= len(e.lines[e.caretLine]) {
+		e.caretPos = len(e.lines[e.caretLine])
+	}
+
 	e.caretPos--
 	if e.caretPos < 0 {
 		if e.caretLine <= 0 {

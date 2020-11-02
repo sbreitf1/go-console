@@ -7,31 +7,48 @@ type CommandHistory interface {
 }
 
 type memoryCommandHistory struct {
-	history    [][]string
-	count, pos int
+	maxCount int
+	history  [][]string
 }
 
 // NewCommandHistory returns a new command history for maxCount entries.
 func NewCommandHistory(maxCount int) CommandHistory {
-	return &memoryCommandHistory{make([][]string, maxCount), 0, 0}
+	return &memoryCommandHistory{maxCount, make([][]string, 0)}
 }
 
 // Put saves a new command to the history as latest entry.
 func (h *memoryCommandHistory) Put(cmd []string) {
-	//TODO command deduplication
-
-	h.history[h.pos] = cmd
-	h.pos = (h.pos + 1) % len(h.history)
-	if h.count < len(h.history) {
-		h.count++
+	if oldPos := h.find(cmd); oldPos >= 0 {
+		// remove old entry from list
+		h.history = append(h.history[:oldPos], h.history[oldPos+1:]...)
 	}
+
+	h.history = append([][]string{cmd}, h.history...)
+	if len(h.history) > h.maxCount {
+		h.history = h.history[:h.maxCount]
+	}
+}
+
+func (h *memoryCommandHistory) find(cmd []string) int {
+HistLoop:
+	for i := range h.history {
+		if len(h.history[i]) == len(cmd) {
+			for j := range h.history[i] {
+				if cmd[j] != h.history[i][j] {
+					continue HistLoop
+				}
+			}
+			return i
+		}
+	}
+	return -1
 }
 
 // GetHistoryEntry can be used as history callback for ReadCommand.
 func (h *memoryCommandHistory) GetHistoryEntry(index int) ([]string, bool) {
-	if index >= h.count {
+	if index >= len(h.history) {
 		return nil, false
 	}
 
-	return h.history[(h.pos-1-index+len(h.history))%len(h.history)], true
+	return h.history[index], true
 }
