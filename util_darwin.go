@@ -1,4 +1,4 @@
-//go:build !windows && !darwin
+//go:build darwin
 
 package console
 
@@ -11,8 +11,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const ioctlReadTermios = unix.TCGETS
-const ioctlWriteTermios = unix.TCSETS
+const ioctlReadTermios = unix.TIOCGETA
+const ioctlWriteTermios = unix.TIOCSETA
 
 func withoutEcho(f func() error) error {
 	fd := int(os.Stdin.Fd())
