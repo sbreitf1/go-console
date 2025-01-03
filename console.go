@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/term"
 )
 
 const (
@@ -190,7 +190,7 @@ func toList(obj interface{}) []string {
 }
 
 func (d *defaultOutput) GetSize() (int, int, error) {
-	return terminal.GetSize(int(os.Stdout.Fd()))
+	return term.GetSize(int(os.Stdout.Fd()))
 }
 
 // GetSize returns the current terminal dimensions in characters.
